@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <!-- Market Insights Card -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">Market Insights</h4>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="insight-card p-3 bg-light rounded">
+                            <h6 class="text-muted mb-1">Market Sentiment</h6>
+                            <h5 class="mb-0 text-success">Positive</h5>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="insight-card p-3 bg-light rounded">
+                            <h6 class="text-muted mb-1">Trending Sectors</h6>
+                            <h5 class="mb-0">IT, Banking</h5>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="insight-card p-3 bg-light rounded">
+                            <h6 class="text-muted mb-1">Buy Signals</h6>
+                            <h5 class="mb-0 text-success">12 Stocks</h5>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="insight-card p-3 bg-light rounded">
+                            <h6 class="text-muted mb-1">Sell Signals</h6>
+                            <h5 class="mb-0 text-danger">5 Stocks</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock Search Card -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Quick Stock Analysis</h4>
+                <div class="search-controls">
+                    <form action="{{ url_for('analyze') }}" method="post" class="d-flex gap-2">
+                        <div class="input-group">
+                            <input type="text" name="symbols" class="form-control" 
+                                   placeholder="Enter stock symbol (e.g., RELIANCE.NS)"
+                                   list="stockSuggestions"
+                                   required>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i> Analyze
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="popular-stocks">
+                    <h6 class="text-muted mb-3">Popular Stocks</h6>
+                    <div class="row g-3">
+                        {% for stock in ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS'] %}
+                        <div class="col-md-3">
+                            <form action="{{ url_for('analyze') }}" method="post">
+                                <input type="hidden" name="symbols" value="{{ stock }}">
+                                <button type="submit" class="btn btn-outline-primary w-100">
+                                    {{ stock }}
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<datalist id="stockSuggestions">
+    <option value="RELIANCE.NS">Reliance Industries</option>
+    <option value="TCS.NS">Tata Consultancy Services</option>
+    <option value="HDFCBANK.NS">HDFC Bank</option>
+    <option value="INFY.NS">Infosys</option>
+    <option value="BAJFINANCE.NS">Bajaj Finance</option>
+    <option value="ICICIBANK.NS">ICICI Bank</option>
+    <option value="HINDUNILVR.NS">Hindustan Unilever</option>
+    <option value="KOTAKBANK.NS">Kotak Mahindra Bank</option>
+</datalist>
+{% endblock %}
