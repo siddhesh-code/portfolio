@@ -52,6 +52,21 @@ body::before {
     box-shadow: var(--glow);
 }
 
+/* Hero Section */
+.hero-section {
+    border-radius: 20px;
+    padding: 4rem 2rem;
+    box-shadow: var(--card-shadow);
+}
+
+.hero-section h1 {
+    margin-bottom: 0.5rem;
+}
+
+.hero-section p {
+    opacity: 0.9;
+}
+
 /* Market Summary and Insights */
 .market-summary {
     background: rgba(11, 15, 25, 0.5);
