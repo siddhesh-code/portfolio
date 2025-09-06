@@ -13,7 +13,7 @@
         </div>
     {% else %}
     {% for stock in stocks %}
-    <div class="col-12 col-md-6 col-lg-4">
+    <div class="col-12">
         <div class="card stock-card h-100">
             <!-- Header: Symbol, Price, Change -->
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -198,6 +198,12 @@
                         </div>
                     </div>
 
+                    <!-- Chart (full width) -->
+                    <div class="chart-container mb-3" style="height: 260px; position: relative;">
+                        <div class="skeleton skeleton-chart"></div>
+                        <div id="chart-{{ stock.symbol }}" class="apex-chart" data-series='{{ stock.chart|tojson }}' aria-label="Price chart for {{ stock.name or stock.display_symbol or stock.symbol }}" role="img"></div>
+                    </div>
+
                     <!-- Actions (wired) -->
                     <div class="d-flex gap-2 flex-wrap mt-1">
                         <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#alertModal" data-symbol="{{ stock.symbol }}" data-price="{{ '%.2f'|format(stock.price|default(0)|float) }}">
@@ -210,21 +216,6 @@
                             <i class="fas fa-calculator me-1"></i> Position Size
                         </button>
                     </div>
-                  </div>
-                  <div class="col-12 col-lg-5">
-                    <!-- Chart + Key Levels -->
-                        <div id="charts" class="section">
-                            <div class="chart-container mb-3" style="height: 220px; position: relative;">
-                                <div id="chart-{{ stock.symbol }}" class="apex-chart" data-series='{{ stock.chart|tojson }}' aria-label="Price chart for {{ stock.symbol }}" role="img"></div>
-                                <div class="position-absolute top-0 end-0 p-2 small d-flex flex-column gap-1 text-end" style="pointer-events: none;">
-                                    <span class="badge bg-danger-subtle text-danger">R2 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Resistance_2|default(0)|float) }}</span>
-                                    <span class="badge bg-danger-subtle text-danger">R1 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Resistance_1|default(0)|float) }}</span>
-                                    <span class="badge bg-primary-subtle text-primary">Now ₹{{ "%.0f"|format(stock.price|default(0)|float) }}</span>
-                                    <span class="badge bg-success-subtle text-success">S1 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Support_1|default(0)|float) }}</span>
-                                    <span class="badge bg-success-subtle text-success">S2 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Support_2|default(0)|float) }}</span>
-                                </div>
-                            </div>
-                        </div>
                   </div>
                 </div>
 

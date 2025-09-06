@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="reversals" class="mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Reversal Dashboard</h2>
+    <a href="/" class="text-decoration-none">Back to Dashboard</a>
+  </div>
+
+  <form class="mb-3" method="get">
+    <div class="d-flex align-items-center gap-2">
+      <label class="text-muted">Universe</label>
+      <select name="u" class="form-select w-auto" onchange="this.form.submit()">
+        <option value="n50" {% if universe=='n50' %}selected{% endif %}>NIFTY 50</option>
+        <option value="n500" {% if universe=='n500' %}selected{% endif %}>NIFTY 500</option>
+        <option value="watch" {% if universe=='watch' %}selected{% endif %}>Watchlist</option>
+      </select>
+    </div>
+  </form>
+
+  <!-- Sticky Filters Toolbar -->
+  <div class="rev-toolbar card glass-card p-2 mb-3">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <label for="revMinScore" class="text-muted small mb-0">Min score</label>
+        <input id="revMinScore" type="range" min="0" max="30" step="1" value="0" class="form-range" style="width:180px" aria-label="Minimum reversal score">
+        <span id="revMinScoreVal" class="badge bg-secondary">0</span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">Signals</span>
+        {% set sigs = ['Hammer','Bullish engulfing','Morning star','Volume spike','Re-entered above lower band','Momentum flip up (5d)','Shooting star-like','Bearish engulfing','Evening star','Re-entered below upper band','Momentum flip down (5d)'] %}
+        <div class="btn-group btn-group-sm" role="group" aria-label="Signal filters">
+          {% for s in sigs %}
+          <button type="button" class="btn btn-outline-light rev-sig-toggle" data-signal="{{ s }}" aria-pressed="false">{{ s }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">Show</span>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="revShowBull" checked>
+          <label class="form-check-label small" for="revShowBull">Bullish</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="revShowBear" checked>
+          <label class="form-check-label small" for="revShowBear">Bearish</label>
+        </div>
+      </div>
+      <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="revResetFilters" aria-label="Reset filters">Reset</button>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card glass-card h-100">
+        <div class="card-header glass-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-graph-up-arrow"></i> Bullish Reversals</h5>
+          <span class="count-pill text-success" id="revBullCount">{{ reversals.bullish|length }}</span>
+        </div>
+        <div class="card-body">
+          {% if reversals.bullish %}
+          <div class="list-group rev-list rev-bull">
+            {% for it in reversals.bullish %}
+            {% set reasons_text = it.reasons|join(' ; ') %}
+            <a href="{{ it.link }}" class="list-group-item list-group-item-action rev-item" data-dir="bull" data-score="{{ '%.0f'|format(it.score) }}" data-reasons="{{ reasons_text }}">
+              <div class="rev-left">
+                <div class="rev-title">
+                  <strong>{{ it.name }}</strong>
+                  <span class="rev-score">{{ '%.0f'|format(it.score) }}</span>
+                  <span class="badge bg-success">Bullish</span>
+                </div>
+                {% set ind = it.indicators if it.indicators is defined and it.indicators else {} %}
+                {% set rsi_obj = ind.get('RSI', {}) %}
+                {% set macd_obj = ind.get('MACD', {}) %}
+                <div class="rev-subtext">RSI {{ '%.0f'|format((rsi_obj.get('value', 50))|float) }} ({{ rsi_obj.get('signal','Neutral') }}) · MACD {{ macd_obj.get('Trend','Neutral') }}</div>
+                <div class="rev-signals">
+                  {% for label in ['Hammer','Bullish engulfing','Morning star','Volume spike','Re-entered above lower band','Momentum flip up (5d)'] %}
+                    {% if label in reasons_text %}
+                      <span class="rev-signal-chip">{{ label }}</span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="rev-right">
+                <div class="rev-price-label">Price</div>
+                <div class="rev-price">₹{{ '%.2f'|format(it.price|float) }}</div>
+                <div class="rev-sparkline mt-1" data-series='{{ it.spark|tojson }}'></div>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-muted small">No bullish reversals detected.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card glass-card h-100">
+        <div class="card-header glass-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-graph-down-arrow"></i> Bearish Reversals</h5>
+          <span class="count-pill text-danger" id="revBearCount">{{ reversals.bearish|length }}</span>
+        </div>
+        <div class="card-body">
+          {% if reversals.bearish %}
+          <div class="list-group rev-list rev-bear">
+            {% for it in reversals.bearish %}
+            {% set reasons_text = it.reasons|join(' ; ') %}
+            <a href="{{ it.link }}" class="list-group-item list-group-item-action rev-item" data-dir="bear" data-score="{{ '%.0f'|format(it.score) }}" data-reasons="{{ reasons_text }}">
+              <div class="rev-left">
+                <div class="rev-title">
+                  <strong>{{ it.name }}</strong>
+                  <span class="rev-score danger">{{ '%.0f'|format(it.score) }}</span>
+                  <span class="badge bg-danger">Bearish</span>
+                </div>
+                {% set ind = it.indicators if it.indicators is defined and it.indicators else {} %}
+                {% set rsi_obj = ind.get('RSI', {}) %}
+                {% set macd_obj = ind.get('MACD', {}) %}
+                <div class="rev-subtext">RSI {{ '%.0f'|format((rsi_obj.get('value', 50))|float) }} ({{ rsi_obj.get('signal','Neutral') }}) · MACD {{ macd_obj.get('Trend','Neutral') }}</div>
+                <div class="rev-signals">
+                  {% set reasons_text = it.reasons|join(' ; ') %}
+                  {% for label in ['Shooting star-like','Bearish engulfing','Evening star','Re-entered below upper band','Momentum flip down (5d)'] %}
+                    {% if label in reasons_text %}
+                      <span class="rev-signal-chip">{{ label }}</span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="rev-right">
+                <div class="rev-price-label">Price</div>
+                <div class="rev-price">₹{{ '%.2f'|format(it.price|float) }}</div>
+                <div class="rev-sparkline mt-1" data-series='{{ it.spark|tojson }}'></div>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-muted small">No bearish reversals detected.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

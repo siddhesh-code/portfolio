@@ -5,9 +5,10 @@ Flask web application for stock portfolio analysis
 from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for
 from data_fetcher import get_nifty50_data
 from stock_analyzer import format_stock_analysis
-from config import NIFTY50_SYMBOLS, POSITIONS
+from config import NIFTY50_SYMBOLS, NIFTY500_SYMBOLS, POSITIONS
 import os
 from ai_analysis import conviction_gate, annotate_horizon_advice, generate_picks
+from reversals import rank_reversals
 from datetime import datetime
 
 app = Flask(__name__)
@@ -111,6 +112,46 @@ def picks_api():
     scored = annotate_horizon_advice(scored)
     picks = generate_picks(scored, top_n=5)
     return jsonify(picks)
+
+@app.route('/reversals')
+def reversals_view():
+    """Reversal dashboard: bullish/bearish candidates with reasons."""
+    # Universe selector: u=n50|n500|watch
+    u = (request.args.get('u') or 'n500').lower()
+    if u == 'n50':
+        symbols = NIFTY50_SYMBOLS
+    elif u == 'watch':
+        wl = sorted(list(app.state['watchlist']))
+        symbols = wl if wl else NIFTY50_SYMBOLS
+    else:
+        symbols = NIFTY500_SYMBOLS
+
+    raw = get_nifty50_data(symbols)
+    formatted = format_stock_analysis(raw)
+    rev = rank_reversals(raw, formatted, top_n=20)
+    # KPIs for header
+    try:
+        pos_results = get_nifty50_data([p['symbol'] for p in POSITIONS])
+        kpi = compute_kpis(format_stock_analysis(pos_results), POSITIONS)
+    except Exception:
+        kpi = {'value': 0.0, 'today_pct': 0.0}
+    return render_template('reversals.html', reversals=rev, kpi=kpi, universe=u)
+
+@app.route('/api/reversals')
+def reversals_api():
+    u = (request.args.get('u') or 'n500').lower()
+    if u == 'n50':
+        symbols = NIFTY50_SYMBOLS
+    elif u == 'watch':
+        wl = sorted(list(app.state['watchlist']))
+        symbols = wl if wl else NIFTY50_SYMBOLS
+    else:
+        symbols = NIFTY500_SYMBOLS
+
+    raw = get_nifty50_data(symbols)
+    formatted = format_stock_analysis(raw)
+    rev = rank_reversals(raw, formatted, top_n=50)
+    return jsonify(rev)
 
 @app.route('/analyze', methods=['GET', 'POST'])
 def analyze():

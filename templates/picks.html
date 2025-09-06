@@ -7,6 +7,37 @@
         <a href="/" class="text-decoration-none">Back to Dashboard</a>
     </div>
 
+    <!-- Sticky Filters Toolbar -->
+    <div class="rev-toolbar card glass-card p-2 mb-3">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <label for="pckMinScore" class="text-muted small mb-0">Min score</label>
+                <input id="pckMinScore" type="range" min="0" max="100" step="1" value="0" class="form-range" style="width:200px" aria-label="Minimum pick score">
+                <span id="pckMinScoreVal" class="badge bg-secondary">0</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Actions</span>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" id="pckShowBuy" checked>
+                  <label class="form-check-label small" for="pckShowBuy">Buy</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" id="pckShowSell" checked>
+                  <label class="form-check-label small" for="pckShowSell">Sell</label>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Signals</span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Signal filters">
+                    {% for s in ['Oversold','Overbought','MACD Bullish','MACD Bearish','Uptrend','Downtrend','High RR'] %}
+                    <button type="button" class="btn btn-outline-light pck-sig-toggle" data-signal="{{ s }}" aria-pressed="false">{{ s }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="pckResetFilters" aria-label="Reset filters">Reset</button>
+        </div>
+    </div>
+
     <div class="row g-3">
         {% for horizon in ['short','medium','long'] %}
         {% set label = {'short':'Short Term','medium':'Medium Term','long':'Long Term'}[horizon] %}
@@ -19,16 +50,38 @@
                 <div class="card-body">
                     <h6 class="text-success mb-2">Buy</h6>
                     {% if picks[horizon].buy %}
-                    <div class="list-group mb-3">
+                    <div class="list-group mb-3 rev-list">
                         {% for it in picks[horizon].buy %}
-                        <a href="{{ it.link }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>{{ it.name or it.symbol }}</strong>
-                                <div class="small text-muted">RR {{ '%.1f'|format(it.rr|float) }} · {{ it.trend }} · MACD {{ it.macd.trend }} · RSI {{ '%.0f'|format(it.rsi.value) }} ({{ it.rsi.signal }})</div>
+                        {% set chips = [] %}
+                        {% if it.rsi.signal == 'Oversold' %}{% set _ = chips.append('Oversold') %}{% endif %}
+                        {% if it.rsi.signal == 'Overbought' %}{% set _ = chips.append('Overbought') %}{% endif %}
+                        {% if it.macd.trend == 'Bullish' %}{% set _ = chips.append('MACD Bullish') %}{% endif %}
+                        {% if it.macd.trend == 'Bearish' %}{% set _ = chips.append('MACD Bearish') %}{% endif %}
+                        {% if it.trend == 'Uptrend' %}{% set _ = chips.append('Uptrend') %}{% endif %}
+                        {% if it.trend == 'Downtrend' %}{% set _ = chips.append('Downtrend') %}{% endif %}
+                        {% if it.rr|float >= 2.0 %}{% set _ = chips.append('High RR') %}{% endif %}
+                        <a href="{{ it.link }}" class="list-group-item list-group-item-action rev-item" data-hz="{{ it.horizon }}" data-action="buy" data-score="{{ '%.0f'|format(it.score) }}" data-signals="{{ chips|join(' ; ') }}">
+                            <div class="rev-left">
+                                <div class="rev-title">
+                                    <strong>{{ it.name or it.symbol }}</strong>
+                                    <span class="rev-score">{{ '%.0f'|format(it.score) }}</span>
+                                    <span class="badge bg-success">Buy</span>
+                                </div>
+                                <div class="rev-subtext">RR {{ '%.1f'|format(it.rr|float) }} · {{ it.trend }} · MACD {{ it.macd.trend }} · RSI {{ '%.0f'|format(it.rsi.value) }} ({{ it.rsi.signal }})</div>
+                                <div class="rev-signals">
+                                    {% for chip in chips %}<span class="rev-signal-chip">{{ chip }}</span>{% endfor %}
+                                </div>
                             </div>
-                            <div class="text-end">
-                                <div class="badge bg-success">{{ '%.0f'|format(it.confidence) }}%</div>
-                                <div class="small">₹{{ '%.2f'|format(it.price) }}</div>
+                            <div class="rev-right">
+                                <div class="rev-price-label">Price</div>
+                                <div class="rev-price">₹{{ '%.2f'|format(it.price) }}</div>
+                                {% set r1 = it.ret1m|default(0.0)|float %}
+                                {% set r3 = it.ret3m|default(0.0)|float %}
+                                <div class="metric-chip mt-1" aria-label="Performance last 1 and 3 months">
+                                    1M <span class="{{ 'text-success' if r1>=0 else 'text-danger' }}">{{ ('+' if r1>=0 else '') ~ ('%.1f'|format(r1)) }}%</span>
+                                    · 3M <span class="{{ 'text-success' if r3>=0 else 'text-danger' }}">{{ ('+' if r3>=0 else '') ~ ('%.1f'|format(r3)) }}%</span>
+                                </div>
+                                <div class="pck-sparkline mt-1" data-series='{{ it.spark|tojson }}'></div>
                             </div>
                         </a>
                         {% endfor %}
@@ -39,16 +92,38 @@
 
                     <h6 class="text-danger mb-2">Sell</h6>
                     {% if picks[horizon].sell %}
-                    <div class="list-group">
+                    <div class="list-group rev-list">
                         {% for it in picks[horizon].sell %}
-                        <a href="{{ it.link }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>{{ it.name or it.symbol }}</strong>
-                                <div class="small text-muted">{{ it.trend }} · MACD {{ it.macd.trend }} · RSI {{ '%.0f'|format(it.rsi.value) }} ({{ it.rsi.signal }})</div>
+                        {% set chips = [] %}
+                        {% if it.rsi.signal == 'Oversold' %}{% set _ = chips.append('Oversold') %}{% endif %}
+                        {% if it.rsi.signal == 'Overbought' %}{% set _ = chips.append('Overbought') %}{% endif %}
+                        {% if it.macd.trend == 'Bullish' %}{% set _ = chips.append('MACD Bullish') %}{% endif %}
+                        {% if it.macd.trend == 'Bearish' %}{% set _ = chips.append('MACD Bearish') %}{% endif %}
+                        {% if it.trend == 'Uptrend' %}{% set _ = chips.append('Uptrend') %}{% endif %}
+                        {% if it.trend == 'Downtrend' %}{% set _ = chips.append('Downtrend') %}{% endif %}
+                        {% if it.rr|float >= 2.0 %}{% set _ = chips.append('High RR') %}{% endif %}
+                        <a href="{{ it.link }}" class="list-group-item list-group-item-action rev-item" data-hz="{{ it.horizon }}" data-action="sell" data-score="{{ '%.0f'|format(it.score) }}" data-signals="{{ chips|join(' ; ') }}">
+                            <div class="rev-left">
+                                <div class="rev-title">
+                                    <strong>{{ it.name or it.symbol }}</strong>
+                                    <span class="rev-score danger">{{ '%.0f'|format(it.score) }}</span>
+                                    <span class="badge bg-danger">Sell</span>
+                                </div>
+                                <div class="rev-subtext">{{ it.trend }} · MACD {{ it.macd.trend }} · RSI {{ '%.0f'|format(it.rsi.value) }} ({{ it.rsi.signal }})</div>
+                                <div class="rev-signals">
+                                    {% for chip in chips %}<span class="rev-signal-chip">{{ chip }}</span>{% endfor %}
+                                </div>
                             </div>
-                            <div class="text-end">
-                                <div class="badge bg-danger">{{ '%.0f'|format(it.confidence) }}%</div>
-                                <div class="small">₹{{ '%.2f'|format(it.price) }}</div>
+                            <div class="rev-right">
+                                <div class="rev-price-label">Price</div>
+                                <div class="rev-price">₹{{ '%.2f'|format(it.price) }}</div>
+                                {% set r1 = it.ret1m|default(0.0)|float %}
+                                {% set r3 = it.ret3m|default(0.0)|float %}
+                                <div class="metric-chip mt-1" aria-label="Performance last 1 and 3 months">
+                                    1M <span class="{{ 'text-success' if r1>=0 else 'text-danger' }}">{{ ('+' if r1>=0 else '') ~ ('%.1f'|format(r1)) }}%</span>
+                                    · 3M <span class="{{ 'text-success' if r3>=0 else 'text-danger' }}">{{ ('+' if r3>=0 else '') ~ ('%.1f'|format(r3)) }}%</span>
+                                </div>
+                                <div class="pck-sparkline mt-1" data-series='{{ it.spark|tojson }}'></div>
                             </div>
                         </a>
                         {% endfor %}

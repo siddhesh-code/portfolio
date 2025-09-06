@@ -14,10 +14,158 @@ document.addEventListener('DOMContentLoaded', function() {
         const series = node.dataset.series ? JSON.parse(node.dataset.series) : null;
         if (series && series.candles && window.ApexCharts) {
             initializeCandle(node, series);
+            // Remove skeleton in the same container once chart renders
+            const container = node.closest('.chart-container');
+            const removeSkeleton = () => {
+                const sk = container?.querySelector('.skeleton');
+                if (sk) sk.remove();
+            };
+            // In case render is async, attempt delayed cleanup
+            setTimeout(removeSkeleton, 300);
         } else if (series && series.labels && series.close) {
             initializeChart(node, series);
         }
     });
+
+    // Initialize mini sparklines on reversal lists
+    document.querySelectorAll('.rev-sparkline').forEach(node => {
+        if (!window.ApexCharts) return;
+        let series;
+        try { series = JSON.parse(node.dataset.series || '[]'); } catch { series = []; }
+        if (!series || series.length < 3) return;
+        // Use list side color for consistency instead of slope
+        const parentList = node.closest('.rev-list');
+        const isBull = parentList && parentList.classList.contains('rev-bull');
+        const color = isBull ? getComputedStyle(document.documentElement).getPropertyValue('--bull').trim() : getComputedStyle(document.documentElement).getPropertyValue('--bear').trim();
+        const options = {
+            chart: { type: 'line', height: 36, width: 130, sparkline: { enabled: true } },
+            series: [{ data: series }],
+            stroke: { width: 1.6, curve: 'smooth', colors: [color] },
+            tooltip: { enabled: false },
+            grid: { padding: { top: 0, bottom: 0, left: 0, right: 0 } }
+        };
+        const chart = new ApexCharts(node, options);
+        chart.render().then(() => {
+            node.classList.add('rendered');
+        });
+    });
+
+    // Initialize mini sparklines on picks lists
+    document.querySelectorAll('.pck-sparkline').forEach(node => {
+        if (!window.ApexCharts) return;
+        let series;
+        try { series = JSON.parse(node.dataset.series || '[]'); } catch { series = []; }
+        if (!series || series.length < 3) return;
+        const up = series[series.length - 1] >= series[0];
+        const options = {
+            chart: { type: 'line', height: 36, width: 130, sparkline: { enabled: true } },
+            series: [{ data: series }],
+            stroke: { width: 1.6, curve: 'smooth', colors: [up ? '#22C55E' : '#EF4444'] },
+            tooltip: { enabled: false },
+            grid: { padding: { top: 0, bottom: 0, left: 0, right: 0 } }
+        };
+        const chart = new ApexCharts(node, options);
+        chart.render().then(() => node.classList.add('rendered'));
+    });
+
+    // Picks filters
+    const pMin = document.getElementById('pckMinScore');
+    const pMinVal = document.getElementById('pckMinScoreVal');
+    const pBuy = document.getElementById('pckShowBuy');
+    const pSell = document.getElementById('pckShowSell');
+    const pSigBtns = Array.from(document.querySelectorAll('.pck-sig-toggle'));
+    const pReset = document.getElementById('pckResetFilters');
+
+    function pGetSignals() { return pSigBtns.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.signal.toLowerCase()); }
+    function applyPicksFilters() {
+        const minScore = parseInt(pMin?.value || '0', 10) || 0;
+        const sigs = pGetSignals();
+        document.querySelectorAll('#picks .rev-item').forEach(item => {
+            const action = item.getAttribute('data-action');
+            const score = parseInt(item.getAttribute('data-score') || '0', 10) || 0;
+            const reasons = (item.getAttribute('data-signals') || '').toLowerCase();
+            if ((action === 'buy' && !pBuy?.checked) || (action === 'sell' && !pSell?.checked)) { item.classList.add('d-none'); return; }
+            if (score < minScore) { item.classList.add('d-none'); return; }
+            if (sigs.length) {
+                const hit = sigs.some(s => reasons.includes(s));
+                if (!hit) { item.classList.add('d-none'); return; }
+            }
+            item.classList.remove('d-none');
+        });
+        if (pMinVal) pMinVal.textContent = String(minScore);
+    }
+    if (pMin) { pMin.addEventListener('input', applyPicksFilters); pMinVal.textContent = String(pMin.value); }
+    pSigBtns.forEach(b => b.addEventListener('click', () => { const p = b.getAttribute('aria-pressed') === 'true'; b.setAttribute('aria-pressed', (!p).toString()); b.classList.toggle('active', !p); applyPicksFilters(); }));
+    pBuy?.addEventListener('change', applyPicksFilters);
+    pSell?.addEventListener('change', applyPicksFilters);
+    pReset?.addEventListener('click', () => { if (pMin) { pMin.value = '0'; pMinVal.textContent = '0'; } if (pBuy) pBuy.checked = true; if (pSell) pSell.checked = true; pSigBtns.forEach(b => { b.setAttribute('aria-pressed','false'); b.classList.remove('active'); }); applyPicksFilters(); });
+    applyPicksFilters();
+
+    // Reversal filters (score, signals, direction)
+    const minScoreInput = document.getElementById('revMinScore');
+    const minScoreVal = document.getElementById('revMinScoreVal');
+    const sigButtons = Array.from(document.querySelectorAll('.rev-sig-toggle'));
+    const showBull = document.getElementById('revShowBull');
+    const showBear = document.getElementById('revShowBear');
+    const resetBtn = document.getElementById('revResetFilters');
+    const bullCount = document.getElementById('revBullCount');
+    const bearCount = document.getElementById('revBearCount');
+
+    function getActiveSignals() {
+        return sigButtons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.signal);
+    }
+
+    function applyFilters() {
+        const minScore = parseInt(minScoreInput?.value || '0', 10) || 0;
+        const sigs = getActiveSignals();
+        let bullVisible = 0, bearVisible = 0;
+        document.querySelectorAll('.rev-item').forEach(item => {
+            const dir = item.getAttribute('data-dir');
+            const score = parseInt(item.getAttribute('data-score') || '0', 10) || 0;
+            const reasons = (item.getAttribute('data-reasons') || '').toLowerCase();
+            // Direction filter
+            if ((dir === 'bull' && !showBull.checked) || (dir === 'bear' && !showBear.checked)) {
+                item.classList.add('d-none');
+                return;
+            }
+            // Score filter
+            if (score < minScore) { item.classList.add('d-none'); return; }
+            // Signals (any-of)
+            if (sigs.length) {
+                const hit = sigs.some(s => reasons.includes(s.toLowerCase()));
+                if (!hit) { item.classList.add('d-none'); return; }
+            }
+            item.classList.remove('d-none');
+            if (dir === 'bull') bullVisible++; else if (dir === 'bear') bearVisible++;
+        });
+        if (bullCount) bullCount.textContent = String(bullVisible);
+        if (bearCount) bearCount.textContent = String(bearVisible);
+        if (minScoreVal) minScoreVal.textContent = String(minScore);
+    }
+
+    if (minScoreInput) {
+        minScoreInput.addEventListener('input', applyFilters);
+        if (minScoreVal) minScoreVal.textContent = String(minScoreInput.value);
+    }
+    sigButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const pressed = btn.getAttribute('aria-pressed') === 'true';
+            btn.setAttribute('aria-pressed', (!pressed).toString());
+            btn.classList.toggle('active', !pressed);
+            applyFilters();
+        });
+    });
+    showBull?.addEventListener('change', applyFilters);
+    showBear?.addEventListener('change', applyFilters);
+    resetBtn?.addEventListener('click', () => {
+        if (minScoreInput) { minScoreInput.value = '0'; if (minScoreVal) minScoreVal.textContent = '0'; }
+        sigButtons.forEach(b => { b.setAttribute('aria-pressed','false'); b.classList.remove('active'); });
+        if (showBull) showBull.checked = true; if (showBear) showBear.checked = true;
+        applyFilters();
+    });
+
+    // Initial filter pass to compute visible counts
+    applyFilters();
     
     // Initialize tooltips
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -240,9 +388,13 @@ function initializeCandle(node, series) {
                     lows.push(Number(y[2]));
                 }
             });
-            if (!highs.length) return null;
-            const min = Math.min(...lows);
-            const max = Math.max(...highs);
+            // Include S/R levels so their annotations are visible
+            const sr = [series.s1, series.s2, series.r1, series.r2]
+                .map(v => Number(v))
+                .filter(v => Number.isFinite(v) && v > 0);
+            if (!highs.length && !sr.length) return null;
+            const min = Math.min(...(lows.length ? lows : sr));
+            const max = Math.max(...(highs.length ? highs : sr));
             const pad = Math.max((max - min) * 0.06, max * 0.003);
             return { min: min - pad, max: max + pad };
         } catch { return null; }
@@ -256,7 +408,10 @@ function initializeCandle(node, series) {
             toolbar: { show: false },
             animations: { enabled: false },
             background: 'transparent',
-            sparkline: { enabled: true }
+            sparkline: { enabled: true },
+            parentHeightOffset: 0,
+            offsetX: 0,
+            offsetY: 0
         },
         series: [
             { name: 'Price', type: 'candlestick', data: series.candles || [] },
@@ -267,10 +422,10 @@ function initializeCandle(node, series) {
         ],
         xaxis: { type: 'datetime', labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false }, tooltip: { enabled: false } },
         yaxis: [
-            { labels: { show: false }, axisBorder: { show: false }, min: bounds?.min, max: bounds?.max },
-            { labels: { show: false }, axisBorder: { show: false }, opposite: true, min: 0, max: volMax * 1.4 }
+            { labels: { show: false }, axisBorder: { show: false }, min: bounds?.min, max: bounds?.max, tickAmount: 2 },
+            { labels: { show: false }, axisBorder: { show: false }, opposite: true, min: 0, max: volMax * 1.4, tickAmount: 2 }
         ],
-        grid: { show: false },
+        grid: { show: false, padding: { top: 0, right: 0, left: 0, bottom: -10 } },
         legend: { show: false },
         dataLabels: { enabled: false },
         tooltip: { theme: 'dark', shared: false, x: { show: false } },
@@ -278,6 +433,11 @@ function initializeCandle(node, series) {
             candlestick: {
                 colors: { upward: '#22C55E', downward: '#EF4444' },
                 wick: { useFillColor: true }
+            },
+            bar: {
+                columnWidth: '75%',
+                borderRadius: 0,
+                borderRadiusApplication: 'end'
             }
         },
         stroke: { colors: ['#3B82F6', 'rgba(148,163,184,0.5)', '#22C55E', '#60A5FA', '#60A5FA'], width: [1, 0, 1.2, 1, 1] },

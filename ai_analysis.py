@@ -338,6 +338,25 @@ def generate_picks(stocks: List[Dict[str, Any]], top_n: int = 5) -> Dict[str, An
         ind = stock.get('indicators', {})
         rsi = ind.get('RSI', {})
         macd = ind.get('MACD', {})
+        # Sparkline from chart candles (close-only, last 30)
+        spark = []
+        try:
+            candles = (stock.get('chart') or {}).get('candles') or []
+            if candles:
+                closes = [float(c['y'][3]) for c in candles[-30:] if c and c.get('y')]
+                spark = closes
+        except Exception:
+            spark = []
+        # Performance chips from metrics (1M/3M)
+        m = stock.get('metrics', {}) if isinstance(stock.get('metrics'), dict) else {}
+        try:
+            ret1m = float(m.get('ret_21d', 0) or 0) * 100.0
+        except Exception:
+            ret1m = 0.0
+        try:
+            ret3m = float(m.get('ret_63d', 0) or 0) * 100.0
+        except Exception:
+            ret3m = 0.0
         return {
             'symbol': stock['symbol'],
             'name': stock.get('name') or (stock['symbol'].split('.')[0] if isinstance(stock.get('symbol'), str) else stock.get('symbol')),
@@ -350,7 +369,11 @@ def generate_picks(stocks: List[Dict[str, Any]], top_n: int = 5) -> Dict[str, An
             'rsi': {'value': float(rsi.get('value', 50) or 50), 'signal': rsi.get('signal', 'Neutral')},
             'macd': {'trend': macd.get('Trend', 'Neutral')},
             'reason': stock.get('action_reason', ''),
-            'link': f"/analyze?symbols={stock['symbol']}"
+            'link': f"/analyze?symbols={stock['symbol']}",
+            'spark': spark,
+            'ret1m': ret1m,
+            'ret3m': ret3m,
+            'horizon': horizon_key
         }
 
     def horizon_filters(item, hkey, stock):
