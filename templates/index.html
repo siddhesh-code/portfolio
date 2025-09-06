@@ -1,86 +1,146 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="hero-section gradient-animation text-center text-white mb-4">
-    <h1 class="display-5 fw-bold">AI-Powered Stock Insights</h1>
-    <p class="lead mb-0">Analyze and track your investments with ease</p>
-</div>
+<section id="overview" class="hero-section gradient-animation text-center text-white mb-4 rounded p-4">
+    <h1 class="display-6 fw-bold">AI-Powered Trading Dashboard</h1>
+    <p class="mb-0">Real-time insights, conviction scoring, and actionable signals</p>
+    <div class="mt-3">
+        <a href="#market" class="btn btn-primary me-2"><i class="fas fa-bolt me-1"></i> Explore Market</a>
+        <a href="#watchlist" class="btn btn-outline-light">Build Watchlist</a>
+    </div>
+    <small class="d-block mt-2 text-white-50">Startup-grade performance. Production-ready UI.</small>
+    </section>
 
-<div class="row">
-    <div class="col-md-12">
-        <!-- Market Insights Card -->
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header bg-white">
-                <h4 class="mb-0">Market Insights</h4>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <div class="insight-card p-3 bg-light rounded">
-                            <h6 class="text-muted mb-1">Market Sentiment</h6>
-                            <h5 class="mb-0 text-success">Positive</h5>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="insight-card p-3 bg-light rounded">
-                            <h6 class="text-muted mb-1">Trending Sectors</h6>
-                            <h5 class="mb-0">IT, Banking</h5>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="insight-card p-3 bg-light rounded">
-                            <h6 class="text-muted mb-1">Buy Signals</h6>
-                            <h5 class="mb-0 text-success">12 Stocks</h5>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="insight-card p-3 bg-light rounded">
-                            <h6 class="text-muted mb-1">Sell Signals</h6>
-                            <h5 class="mb-0 text-danger">5 Stocks</h5>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<section id="market" class="mb-4">
+    <div class="card glass-card shadow-sm">
+        <div class="card-header glass-header d-flex align-items-center justify-content-between">
+            <h4 class="mb-0">Market Insights</h4>
+            <span class="badge bg-success">{{ insights.sentiment or '—' }}</span>
         </div>
-
-        <!-- Stock Search Card -->
-        <div class="card shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">Quick Stock Analysis</h4>
-                <div class="search-controls">
-                    <form action="{{ url_for('analyze') }}" method="post" class="d-flex gap-2">
-                        <div class="input-group">
-                            <input type="text" name="symbols" class="form-control" 
-                                   placeholder="Enter stock symbol (e.g., RELIANCE.NS)"
-                                   list="stockSuggestions"
-                                   required>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-search me-1"></i> Analyze
-                            </button>
-                        </div>
-                    </form>
+        <div class="card-body">
+            <div class="row g-3 text-center">
+                <div class="col-6 col-md-3">
+                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Buy Signals</span> <strong>{{ insights.buy_signals }}</strong></div>
                 </div>
-            </div>
-            <div class="card-body">
-                <div class="popular-stocks">
-                    <h6 class="text-muted mb-3">Popular Stocks</h6>
-                    <div class="row g-3">
-                        {% for stock in ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS'] %}
-                        <div class="col-md-3">
-                            <form action="{{ url_for('analyze') }}" method="post">
-                                <input type="hidden" name="symbols" value="{{ stock }}">
-                                <button type="submit" class="btn btn-outline-primary w-100">
-                                    {{ stock }}
-                                </button>
-                            </form>
-                        </div>
-                        {% endfor %}
-                    </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Sell Signals</span> <strong>{{ insights.sell_signals }}</strong></div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Top Movers</span> <strong>{{ insights.top_movers }}</strong></div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Sentiment</span> <strong>{{ insights.sentiment }}</strong></div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+</section>
+
+<section id="watchlist" class="mb-4">
+    <div class="card glass-card shadow-sm">
+        <div class="card-header glass-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Quick Stock Analysis</h4>
+            <form action="{{ url_for('analyze') }}" method="post" class="d-flex gap-2">
+                <div class="input-group">
+                    <input type="text" name="symbols" class="form-control" placeholder="Enter symbol (e.g., RELIANCE.NS)" list="stockSuggestions" required>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Analyze</button>
+                </div>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for sym in ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS'] %}
+                <div class="col-6 col-md-3">
+                    <form action="{{ url_for('analyze') }}" method="post">
+                        <input type="hidden" name="symbols" value="{{ sym }}">
+                        <button type="submit" class="btn btn-outline-primary w-100">{{ sym }}</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="technical-indicators" class="mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <h4 class="mb-0">Featured Analysis</h4>
+        <a href="/picks" class="text-decoration-none">View all</a>
+    </div>
+    <div class="row g-3">
+        {% if stocks and stocks|length > 0 %}
+        {% for stock in stocks %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card stock-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <h5 class="mb-0">{{ stock.name or stock.display_symbol or stock.symbol }}</h5>
+                            {% set action_map = {'Buy':'success','Sell':'danger','Hold':'secondary','Watch':'warning'} %}
+                            <span class="badge bg-{{ action_map[stock.action] if stock.action in action_map else 'secondary' }}">{{ stock.action }}</span>
+                        </div>
+                        <small class="text-muted">{{ stock.action_reason }}</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="price">₹{{ "%.2f"|format(stock.price|float) }}</div>
+                        {% set pc = stock.price_change|default(0)|float %}
+                        <small class="{{ 'text-success' if pc>0 else 'text-danger' }}">{{ "+" if pc>0 else '' }}{{ "%.2f"|format(pc) }}</small>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="indicators-grid mb-3">
+                        {# RSI #}
+                        {% set rsi = stock.indicators.RSI.value|default(50)|float %}
+                        <div class="indicator-card">
+                            <div class="indicator-header"><span>RSI</span><span class="text-muted">{{ stock.indicators.RSI.signal|default('Neutral') }}</span></div>
+                            <div class="indicator-value">{{ "%.1f"|format(rsi) }}</div>
+                        </div>
+                        {# MACD #}
+                        {% set macd_trend = stock.indicators.MACD.Trend|default('Neutral') %}
+                        <div class="indicator-card">
+                            <div class="indicator-header"><span>MACD</span><span class="text-muted">{{ macd_trend }}</span></div>
+                            <div class="indicator-value">{{ "%.2f"|format(stock.indicators.MACD.MACD|default(0)|float - stock.indicators.MACD.Signal|default(0)|float) }}</div>
+                        </div>
+                        {# Bollinger #}
+                        {% set bb_pos = stock.indicators.BB.Position|default([50,'Neutral']) %}
+                        <div class="indicator-card">
+                            <div class="indicator-header"><span>Bollinger</span><span class="text-muted">{{ bb_pos[1] }}</span></div>
+                            <div class="indicator-value">{{ "%.0f"|format(bb_pos[0]|float) }}%</div>
+                        </div>
+                        {# SMA #}
+                        <div class="indicator-card">
+                            <div class="indicator-header"><span>SMA</span><span class="text-muted">{{ stock.indicators.SMA.Trend|default('Neutral') }}</span></div>
+                            <div class="indicator-value">—</div>
+                        </div>
+                        {# Volume #}
+                        <div class="indicator-card">
+                            <div class="indicator-header"><span>Volume</span><span class="text-muted">{{ stock.indicators.Volume.Trend|default('Neutral') }}</span></div>
+                            <div class="indicator-value">{{ stock.indicators.Volume.Current|default(0) }}</div>
+                        </div>
+                        {# R/R #}
+                        <div class="indicator-card">
+                            <div class="indicator-header"><span>R/R</span><span class="text-muted">Opportunity</span></div>
+                            <div class="indicator-value">{{ "%.1f"|format(stock.risk_reward|default(0)|float) }}</div>
+                        </div>
+                    </div>
+                    <div class="chart-container" style="height: 160px;">
+                        <div id="chart-{{ stock.symbol }}" class="apex-chart" data-series='{{ stock.chart|tojson }}'></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="col-12">
+            <div class="card glass-card p-4 text-center text-muted">
+                <div class="mb-2"><i class="bi bi-search"></i></div>
+                <div>No stocks to display yet.</div>
+                <small>Use the analyzer above to search symbols.</small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
 
 <datalist id="stockSuggestions">
     <option value="RELIANCE.NS">Reliance Industries</option>

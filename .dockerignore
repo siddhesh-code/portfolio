@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+test-report.html
+tests/
+assets/*
+docs/*.md
+Dockerfile
+docker-compose.yml
+.DS_Store

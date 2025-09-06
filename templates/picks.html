@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="picks" class="mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">Plutus Picks</h2>
+        <a href="/" class="text-decoration-none">Back to Dashboard</a>
+    </div>
+
+    <div class="row g-3">
+        {% for horizon in ['short','medium','long'] %}
+        {% set label = {'short':'Short Term','medium':'Medium Term','long':'Long Term'}[horizon] %}
+        <div class="col-12 col-lg-4">
+            <div class="card glass-card h-100">
+                <div class="card-header glass-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ label }}</h5>
+                    <span class="badge bg-primary">Top 5</span>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-success mb-2">Buy</h6>
+                    {% if picks[horizon].buy %}
+                    <div class="list-group mb-3">
+                        {% for it in picks[horizon].buy %}
+                        <a href="{{ it.link }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ it.name or it.symbol }}</strong>
+                                <div class="small text-muted">RR {{ '%.1f'|format(it.rr|float) }} · {{ it.trend }} · MACD {{ it.macd.trend }} · RSI {{ '%.0f'|format(it.rsi.value) }} ({{ it.rsi.signal }})</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="badge bg-success">{{ '%.0f'|format(it.confidence) }}%</div>
+                                <div class="small">₹{{ '%.2f'|format(it.price) }}</div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-muted small mb-3">No strong buy signals.</div>
+                    {% endif %}
+
+                    <h6 class="text-danger mb-2">Sell</h6>
+                    {% if picks[horizon].sell %}
+                    <div class="list-group">
+                        {% for it in picks[horizon].sell %}
+                        <a href="{{ it.link }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ it.name or it.symbol }}</strong>
+                                <div class="small text-muted">{{ it.trend }} · MACD {{ it.macd.trend }} · RSI {{ '%.0f'|format(it.rsi.value) }} ({{ it.rsi.signal }})</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="badge bg-danger">{{ '%.0f'|format(it.confidence) }}%</div>
+                                <div class="small">₹{{ '%.2f'|format(it.price) }}</div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">No strong sell signals.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

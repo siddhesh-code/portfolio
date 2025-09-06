@@ -27,3 +27,11 @@ VOLUME_PERIOD = 20
 VOLATILITY_PERIOD = 20
 SMA_PERIODS = [20, 50]
 EMA_PERIOD = 20
+
+# Example portfolio positions for KPI computation
+# Replace with your actual holdings or wire to a DB later
+POSITIONS = [
+    {"symbol": "RELIANCE.NS", "qty": 10, "avg_price": 2500.0},
+    {"symbol": "HDFCBANK.NS", "qty": 15, "avg_price": 1550.0},
+    {"symbol": "ICICIBANK.NS", "qty": 12, "avg_price": 950.0}
+]

@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 import time
 from config import NIFTY50_SYMBOLS
+import sys
 from indicators import calculate_technical_indicators
 
 def fetch_stock_data(symbol):
@@ -49,7 +50,8 @@ def get_nifty50_data(symbols=None, max_workers=5):
         for future in tqdm(
             futures,
             total=len(futures),
-            desc="Fetching stock data"
+            desc="Fetching stock data",
+            disable=not sys.stderr.isatty()
         ):
             symbol, result = future.result()
             if result is not None:

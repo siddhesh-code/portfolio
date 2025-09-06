@@ -1,251 +1,339 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row">
-    {% for stock in stocks %}
-    <div class="col-lg-4 col-md-6 mb-4">
-        <div class="card stock-card h-100">
-            <!-- Portfolio Context Header -->
-            <div class="portfolio-context p-2">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="portfolio-allocation">2% of Portfolio</span>
-                    <span class="daily-pl {% if (stock.day_change|float) > 0 %}text-success{% else %}text-danger{% endif %}">
-                        {{ "%.1f"|format(stock.day_change|float) }}% today
-                    </span>
-                </div>
+<div id="main-content">
+    <div class="row g-4" id="stock-analysis">
+    {% if not stocks or stocks|length == 0 %}
+        <div class="col-12">
+            <div class="card glass-card p-4 text-center text-muted">
+                <div class="mb-2"><i class="bi bi-search"></i></div>
+                <div>No analysis available.</div>
+                <small>Try another symbol or check network connectivity.</small>
             </div>
-            
+        </div>
+    {% else %}
+    {% for stock in stocks %}
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="card stock-card h-100">
+            <!-- Header: Symbol, Price, Change -->
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
-                    <h4 class="mb-0">{{ stock.symbol }}</h4>
-                    <small class="text-muted">Capital at risk: 2%</small>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h4 class="mb-0">{{ stock.name or stock.display_symbol or stock.symbol }}</h4>
+                        {% set action_map = {'Buy':'success','Sell':'danger','Hold':'secondary','Watch':'warning'} %}
+                        <span class="badge bg-{{ action_map[stock.action] if stock.action in action_map else 'secondary' }}">
+                            {{ stock.action }}
+                        </span>
+                        {% set cscore = stock.conviction.score|default(0)|float %}
+                        {% set cclass = 'success' if cscore >= 80 else ('warning' if cscore >= 60 else 'secondary') %}
+                        <span class="metric-chip" data-bs-toggle="tooltip" title="{{ (stock.conviction.reasons|default([]))|join('; ') }}">
+                            <i class="bi bi-lightning-charge-fill text-{{ cclass }}"></i>
+                            Conviction {{ "%.0f"|format(cscore) }}
+                        </span>
+                        {% if stock.advice %}
+                        {% set map = {'Buy':'success','Sell':'danger','Hold':'secondary'} %}
+                        <span class="metric-chip" data-bs-toggle="tooltip" title="Multi-horizon overall recommendation">
+                            <i class="bi bi-compass text-{{ map[stock.advice.overall.action] }}"></i>
+                            Overall {{ stock.advice.overall.action }} {{ "%.0f"|format(stock.advice.overall.confidence|default(0)|float) }}%
+                        </span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">{{ stock.action_reason }}</small>
                 </div>
                 <div class="text-end">
-                    <div class="price">₹{{ "%.2f"|format(stock.price) }}</div>
-                    <small class="price-change {% if (stock.price_change|float) > 0 %}text-success{% else %}text-danger{% endif %}">
-                        {{ "%.2f"|format(stock.price_change|float) }}
+                    <div class="price">₹{{ "%.2f"|format(stock.price|float) }}</div>
+                    {% set pc = stock.price_change|default(0)|float %}
+                    <small class="price-change {{ 'text-success' if pc > 0 else 'text-danger' }}">
+                        {{ "+" if pc > 0 else "" }}{{ "%.2f"|format(pc) }}
                     </small>
+                    <div class="small {{ 'text-success' if (stock.day_change|default(0)|float) > 0 else 'text-danger' }}">
+                        {{ "%.1f"|format(stock.day_change|default(0)|float) }}% today
+                    </div>
                 </div>
             </div>
-            <div class="card-body">
-                <!-- Health Score -->
-                <div class="health-meter mb-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Health Score</h5>
-                        <div class="score-circle" data-score="{{ stock.health_score }}">
-                            <span class="score">{{ stock.health_score|default(0)|round|int }}</span>/100
+
+            <div class="card-body d-flex flex-column">
+                <!-- Top: Health + Trend -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="health-meter d-flex align-items-center gap-3">
+                            <div class="score-circle" data-score="{{ stock.health_score|default(0)|int }}" aria-label="Health score {{ stock.health_score|default(0)|int }} out of 100">
+                                <span class="score">{{ stock.health_score|default(0)|round|int }}</span>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Health Score</div>
+                                <div class="fw-semibold">{{ stock.trend_strength|default('Neutral') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% set trend = stock.trend|default('Sideways') %}
+                    {% set trend_icon = {'Uptrend': 'bi-arrow-up-right','Downtrend': 'bi-arrow-down-right','Sideways': 'bi-arrow-left-right'} %}
+                    {% set trend_color = {'Uptrend': 'success','Downtrend': 'danger','Sideways': 'warning'} %}
+                    <div class="text-end">
+                        <span class="trend-badge badge bg-{{ trend_color[trend] if trend in trend_color else 'secondary' }}">
+                            <i class="bi {{ trend_icon[trend] if trend in trend_icon else 'bi-activity' }} me-1"></i>{{ trend }}
+                        </span>
+                    </div>
+                </div>
+
+                
+
+                <!-- Portfolio Summary -->
+                <div id="portfolio-summary" class="section">
+                    {% set risk_reward = stock.risk_reward|default(0)|float %}
+                    {% set rr_color = 'success' if risk_reward > 2.0 else ('warning' if risk_reward > 1.0 else 'danger') %}
+                    <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="p-2 rounded border border-secondary-subtle d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Risk/Reward</span>
+                            <span class="badge bg-{{ rr_color }}">{{ "%.1f"|format(risk_reward) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        {% set vol = stock.indicators.Volatility|default(0)|float %}
+                        <div class="p-2 rounded border border-secondary-subtle d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Volatility</span>
+                            <span class="badge bg-dark">{{ "%.1f"|format(vol) }}%</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Trend -->
-                <div class="trend-section mb-4">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h5 class="mb-2">Trend</h5>
-                            {% set trend = stock.trend %}
-                            {% set trend_icon = {
-                                'Uptrend': '⬆️',
-                                'Downtrend': '⬇️',
-                                'Sideways': '↔️'
-                            } %}
-                            {% set trend_color = {
-                                'Uptrend': 'success',
-                                'Downtrend': 'danger',
-                                'Sideways': 'warning'
-                            } %}
-                            <span class="trend-badge badge bg-{{ trend_color[trend] }}">
-                                {{ trend_icon[trend] }} {{ trend }}
-                            </span>
-                        </div>
-                        <div>
-                            <h5 class="mb-2">Strength</h5>
-                            <span class="strength-badge badge bg-secondary">
-                                {{ stock.trend_strength }}
-                            </span>
-                        </div>
+                <!-- Targets + Progress -->
+                <div class="targets-section mb-3">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Stop</span>
+                        <span>Price</span>
+                        <span>Target</span>
                     </div>
-                </div>
-
-                <!-- Action -->
-                <div class="action-section mb-4">
-                    {% set action_color = {
-                        'Buy': 'success',
-                        'Sell': 'danger',
-                        'Hold': 'secondary',
-                        'Watch': 'warning'
-                    } %}
-                    {% set action_icon = {
-                        'Buy': '↗️',
-                        'Sell': '↘️',
-                        'Hold': '→',
-                        'Watch': '👀'
-                    } %}
-                    <button class="btn btn-{{ action_color[stock.action] }} action-button w-100 position-relative">
-                        <div class="action-icon">{{ action_icon[stock.action] }}</div>
-                        <div class="action-text">
-                            <h3 class="mb-1">{{ stock.action }}</h3>
-                            <p class="mb-0 small">{{ stock.action_reason }}</p>
-                        </div>
-                    </button>
-                </div>
-
-                <!-- Price Targets with Progress -->
-                <div class="targets-section mb-4">
-                    <h5 class="mb-3">Price Targets</h5>
                     <div class="price-range-container">
                         <div class="price-points d-flex justify-content-between mb-2">
-                            <div class="text-danger">₹{{ "%.0f"|format(stock.stop_loss) }}</div>
-                            <div class="text-primary">₹{{ "%.0f"|format(stock.price) }}</div>
-                            <div class="text-success">₹{{ "%.0f"|format(stock.price_target) }}</div>
+                            <div class="text-danger">₹{{ "%.0f"|format(stock.stop_loss|default(0)|float) }}</div>
+                            <div class="text-primary">₹{{ "%.0f"|format(stock.price|default(0)|float) }}</div>
+                            <div class="text-success">₹{{ "%.0f"|format(stock.price_target|default(0)|float) }}</div>
                         </div>
+                        {% set price_target = stock.price_target|default(0)|float %}
+                        {% set stop_loss = stock.stop_loss|default(0)|float %}
+                        {% set current_price = stock.price|default(0)|float %}
+                        {% set range = (price_target - stop_loss) if (price_target - stop_loss) != 0 else 1 %}
+                        {% set position = (((current_price - stop_loss) / range) * 100)|float %}
+                        {% set position = 0 if position < 0 else (100 if position > 100 else position) %}
                         <div class="price-progress">
-                            {% set price_target = stock.price_target|float %}
-                            {% set stop_loss = stock.stop_loss|float %}
-                            {% set current_price = stock.price|float %}
-                            {% set range = price_target - stop_loss %}
-                            {% set position = ((current_price - stop_loss) / range * 100)|float %}
-                            {% if position < 0 %}
-                                {% set position = 0 %}
-                            {% elif position > 100 %}
-                                {% set position = 100 %}
-                            {% endif %}
                             <div class="progress">
-                                <div class="progress-bar" role="progressbar" 
-                                     style="width: {{ position }}%"
-                                     aria-valuenow="{{ position }}" 
-                                     aria-valuemin="0" 
-                                     aria-valuemax="100"></div>
-                            </div>
-                        </div>
-                        {% set risk_reward = stock.risk_reward|default(0)|float %}
-                        {% if risk_reward > 2.0 %}
-                            {% set rr_color = 'success' %}
-                        {% elif risk_reward > 1.0 %}
-                            {% set rr_color = 'warning' %}
-                        {% else %}
-                            {% set rr_color = 'danger' %}
-                        {% endif %}
-                        <div class="risk-reward mt-2 text-center">
-                            <span class="badge bg-{{ rr_color }}">
-                                Risk/Reward: {{ "%.1f"|format(normalized_risk_reward) }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Technical Analysis Section -->
-                <div class="analysis-section mb-4">
-                    <div class="row g-3">
-                        <!-- Technical Indicators -->
-                        <div class="col-12">
-                            <h5 class="mb-3">Technical Indicators</h5>
-                            <div class="indicators-grid">
-                                <!-- RSI Indicator -->
-                                {% set rsi = stock.indicators.RSI.value|float %}
-                                {% set rsi_status = stock.indicators.RSI.signal %}
-                                {% if rsi_status == 'Overbought' %}
-                                    {% set rsi_icon = '↗️' %}
-                                    {% set rsi_class = 'text-danger' %}
-                                {% elif rsi_status == 'Oversold' %}
-                                    {% set rsi_icon = '↘️' %}
-                                    {% set rsi_class = 'text-success' %}
-                                {% else %}
-                                    {% set rsi_icon = '→' %}
-                                    {% set rsi_class = 'text-warning' %}
-                                {% endif %}
-                                
-                                <div class="indicator-card">
-                                    <div class="indicator-header">
-                                        <span>RSI</span>
-                                        <span class="{{ rsi_class }}">{{ rsi_icon }} {{ rsi_status }}</span>
-                                    </div>
-                                    <div class="indicator-value {{ rsi_class }}">{{ "%.1f"|format(rsi) }}</div>
-                                </div>
-
-                                <!-- MACD Indicator -->
-                                {% set macd = stock.indicators.MACD.MACD|float %}
-                                {% set macd_signal = stock.indicators.MACD.Signal|float %}
-                                {% set macd_trend = stock.indicators.MACD.Trend %}
-                                {% if macd_trend == 'Bullish' %}
-                                    {% set macd_icon = '↗️' %}
-                                    {% set macd_class = 'text-success' %}
-                                {% else %}
-                                    {% set macd_icon = '↘️' %}
-                                    {% set macd_class = 'text-danger' %}
-                                {% endif %}
-
-                                <div class="indicator-card">
-                                    <div class="indicator-header">
-                                        <span>MACD</span>
-                                        <span class="{{ macd_class }}">{{ macd_icon }} {{ macd_status }}</span>
-                                    </div>
-                                    <div class="indicator-value {{ macd_class }}">{{ "%.2f"|format(macd) }}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Chart with Support/Resistance -->
-                        <div class="col-12">
-                            <div class="chart-container">
-                                <canvas id="chart-{{ stock.symbol }}" width="100%" height="200"></canvas>
-                                <div class="chart-levels">
-                                    <div class="level resistance-2">R2: ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Resistance_2) }}</div>
-                                    <div class="level resistance-1">R1: ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Resistance_1) }}</div>
-                                    <div class="level price">Current: ₹{{ "%.0f"|format(stock.price) }}</div>
-                                    <div class="level support-1">S1: ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Support_1) }}</div>
-                                    <div class="level support-2">S2: ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Support_2) }}</div>
-                                </div>
+                                <div class="progress-bar" role="progressbar" style="width: {{ position }}%" aria-valuenow="{{ position }}" aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
-                <div class="action-buttons mt-4">
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <button class="btn btn-outline-primary w-100">
-                                <i class="fas fa-bell"></i> Set Alert
-                            </button>
-                        </div>
-                        <div class="col-6">
-                            <button class="btn btn-outline-primary w-100">
-                                <i class="fas fa-star"></i> Add to Watchlist
-                            </button>
-                        </div>
-                        <div class="col-12">
-                            <button class="btn btn-outline-primary w-100">
-                                <i class="fas fa-calculator"></i> Calculate Position Size
-                            </button>
+                <!-- Horizontal content: Indicators (left) + Chart (right) and Actions under left -->
+                <div class="row g-3 align-items-start">
+                  <div class="col-12 col-lg-7">
+                    <!-- Technical Indicators -->
+                    <div id="technical-indicators" class="analysis-section mb-3 section">
+                        <h6 class="mb-2">Technical Indicators</h6>
+                        <div class="indicators-grid">
+                            {# RSI #}
+                            {% set rsi = stock.indicators.RSI.value|default(50)|float %}
+                            {% set rsi_status = stock.indicators.RSI.signal|default('Neutral') %}
+                            {% set rsi_class = 'text-danger' if rsi_status == 'Overbought' else ('text-success' if rsi_status == 'Oversold' else 'text-warning') %}
+                            <div class="indicator-card">
+                                <div class="indicator-header">
+                                    <span>RSI</span>
+                                    <span class="{{ rsi_class }}">{{ rsi_status }}</span>
+                                </div>
+                                <div class="indicator-value {{ rsi_class }}">{{ "%.1f"|format(rsi) }}</div>
+                            </div>
+
+                            {# MACD #}
+                            {% set macd = stock.indicators.MACD.MACD|default(0)|float %}
+                            {% set macd_signal = stock.indicators.MACD.Signal|default(0)|float %}
+                            {% set macd_trend = stock.indicators.MACD.Trend|default('Neutral') %}
+                            {% set macd_class = 'text-success' if macd_trend == 'Bullish' else ('text-danger' if macd_trend == 'Bearish' else 'text-warning') %}
+                            <div class="indicator-card">
+                                <div class="indicator-header">
+                                    <span>MACD</span>
+                                    <span class="{{ macd_class }}">{{ macd_trend }}</span>
+                                </div>
+                                <div class="indicator-value {{ macd_class }}">{{ "%.2f"|format(macd - macd_signal) }}</div>
+                            </div>
+
+                            {# Bollinger #}
+                            {% set bb_pos = stock.indicators.BB.Position|default([50,'Neutral']) %}
+                            <div class="indicator-card">
+                                <div class="indicator-header">
+                                    <span>Bollinger</span>
+                                    <span class="text-muted">{{ bb_pos[1] }}</span>
+                                </div>
+                                <div class="indicator-value">{{ "%.0f"|format(bb_pos[0]|float) }}%</div>
+                            </div>
+
+                            {# SMA Trend #}
+                            {% set sma_trend = stock.indicators.SMA.Trend|default('Neutral') %}
+                            <div class="indicator-card">
+                                <div class="indicator-header">
+                                    <span>SMA 20/50</span>
+                                    <span class="{{ 'text-success' if sma_trend=='Bullish' else 'text-danger' if sma_trend=='Bearish' else 'text-warning' }}">{{ sma_trend }}</span>
+                                </div>
+                                <div class="indicator-value">—</div>
+                            </div>
+
+                            {# Volume #}
+                            {% set vol_trend = stock.indicators.Volume.Trend|default('Neutral') %}
+                            <div class="indicator-card">
+                                <div class="indicator-header">
+                                    <span>Volume</span>
+                                    <span class="{{ 'text-success' if vol_trend.startswith('Above') else 'text-warning' }}">{{ vol_trend }}</span>
+                                </div>
+                                <div class="indicator-value">{{ stock.indicators.Volume.Current|default(0) }}</div>
+                            </div>
+
+                            {# Risk/Reward echo #}
+                            <div class="indicator-card">
+                                <div class="indicator-header">
+                                    <span>R/R</span>
+                                    <span class="text-muted">Opportunity</span>
+                                </div>
+                                <div class="indicator-value {{ 'text-success' if rr_color=='success' else 'text-warning' if rr_color=='warning' else 'text-danger' }}">{{ "%.1f"|format(risk_reward) }}</div>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Actions (wired) -->
+                    <div class="d-flex gap-2 flex-wrap mt-1">
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#alertModal" data-symbol="{{ stock.symbol }}" data-price="{{ '%.2f'|format(stock.price|default(0)|float) }}">
+                            <i class="fas fa-bell me-1"></i> Set Alert
+                        </button>
+                        <button class="btn btn-outline-primary" data-action="watch" data-symbol="{{ stock.symbol }}">
+                            <i class="fas fa-star me-1"></i> Watchlist
+                        </button>
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#positionModal" data-symbol="{{ stock.symbol }}" data-price="{{ '%.2f'|format(stock.price|default(0)|float) }}" data-stop="{{ '%.2f'|format(stock.stop_loss|default(0)|float) }}">
+                            <i class="fas fa-calculator me-1"></i> Position Size
+                        </button>
+                    </div>
+                  </div>
+                  <div class="col-12 col-lg-5">
+                    <!-- Chart + Key Levels -->
+                        <div id="charts" class="section">
+                            <div class="chart-container mb-3" style="height: 220px; position: relative;">
+                                <div id="chart-{{ stock.symbol }}" class="apex-chart" data-series='{{ stock.chart|tojson }}' aria-label="Price chart for {{ stock.symbol }}" role="img"></div>
+                                <div class="position-absolute top-0 end-0 p-2 small d-flex flex-column gap-1 text-end" style="pointer-events: none;">
+                                    <span class="badge bg-danger-subtle text-danger">R2 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Resistance_2|default(0)|float) }}</span>
+                                    <span class="badge bg-danger-subtle text-danger">R1 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Resistance_1|default(0)|float) }}</span>
+                                    <span class="badge bg-primary-subtle text-primary">Now ₹{{ "%.0f"|format(stock.price|default(0)|float) }}</span>
+                                    <span class="badge bg-success-subtle text-success">S1 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Support_1|default(0)|float) }}</span>
+                                    <span class="badge bg-success-subtle text-success">S2 ₹{{ "%.0f"|format(stock.indicators.Support_Resistance.Support_2|default(0)|float) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                  </div>
                 </div>
 
-                {% if stock.Backtest_Performance %}
-                <div class="row mt-3">
-                    <div class="col-md-12">
-                        <h5>Backtest Performance</h5>
-                        <table class="table table-sm">
-                            <tr>
-                                <td>Total Return</td>
-                                <td>{{ "%.2f"|format(stock.Backtest_Performance.Total_Return * 100) }}%</td>
-                                <td>Annual Return</td>
-                                <td>{{ "%.2f"|format(stock.Backtest_Performance.Annual_Return * 100) }}%</td>
-                            </tr>
-                            <tr>
-                                <td>Sharpe Ratio</td>
-                                <td>{{ "%.2f"|format(stock.Backtest_Performance.Sharpe_Ratio) }}</td>
-                                <td>Max Drawdown</td>
-                                <td>{{ "%.2f"|format(stock.Backtest_Performance.Max_Drawdown * 100) }}%</td>
-                            </tr>
-                        </table>
-                    </div>
+                {% if stock.backtest %}
+                <div id="backtest" class="mt-3 section">
+                    <h6 class="mb-2">Backtest Performance</h6>
+                    <table class="table table-sm mb-0 align-middle">
+                        <tr>
+                            <td class="text-muted">Total Return</td>
+                            <td>{{ "%.2f"|format(stock.backtest.total_return * 100) }}%</td>
+                            <td class="text-muted">Annual Return</td>
+                            <td>{{ "%.2f"|format(stock.backtest.annual_return * 100) }}%</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Sharpe Ratio</td>
+                            <td>{{ "%.2f"|format(stock.backtest.sharpe_ratio) }}</td>
+                            <td class="text-muted">Max Drawdown</td>
+                            <td>{{ "%.2f"|format(stock.backtest.max_drawdown * 100) }}%</td>
+                        </tr>
+                    </table>
                 </div>
                 {% endif %}
             </div>
         </div>
     </div>
     {% endfor %}
+    {% endif %}
+    </div>
 </div>
+
+<!-- Alert Modal -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create Price Alert</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="alertForm">
+          <div class="mb-3">
+            <label class="form-label">Symbol</label>
+            <input type="text" class="form-control" id="alertSymbol" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Condition</label>
+            <select class="form-select" id="alertCondition">
+              <option value="above">Price rises above</option>
+              <option value="below">Price falls below</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Trigger Price (₹)</label>
+            <input type="number" step="0.01" class="form-control" id="alertPrice">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveAlertBtn">Save Alert</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+<!-- Position Size Modal -->
+<div class="modal fade" id="positionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Position Size Calculator</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="positionForm">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">Symbol</label>
+              <input type="text" class="form-control" id="posSymbol" readonly>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Price (₹)</label>
+              <input type="number" step="0.01" class="form-control" id="posPrice" readonly>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Account Size (₹)</label>
+              <input type="number" class="form-control" id="posAccount" value="100000">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Risk %</label>
+              <input type="number" step="0.1" class="form-control" id="posRisk" value="1">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Stop Loss (₹)</label>
+              <input type="number" step="0.01" class="form-control" id="posStop">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Position Size (qty)</label>
+              <input type="text" class="form-control" id="posResult" readonly>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="calcPositionBtn">Calculate</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
 {% endblock %}
