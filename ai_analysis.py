@@ -17,16 +17,17 @@ Where `stocks` is the list of dictionaries returned by
 """
 from __future__ import annotations
 from typing import List, Dict, Any
-import os
-import requests
-
 
 
 def _safe_get(d: Dict[str, Any], path: List[str], default=None):
     cur = d
     try:
-        for key in path:
-            cur = cur.get(key, {}) if isinstance(cur, dict) else {}
+        for i, key in enumerate(path):
+            if not isinstance(cur, dict):
+                return default
+            cur = cur.get(key, None)
+            if cur is None and i < len(path) - 1:
+                return default
         return cur if cur is not None else default
     except Exception:
         return default
@@ -47,18 +48,36 @@ def conviction_gate(
     """
     scored: List[Dict[str, Any]] = []
 
+    # Normalize preference once (case-insensitive)
+    pref = (prefer_action or "").strip().lower() if isinstance(prefer_action, str) else None
+
     for stock in stocks or []:
         reasons: List[str] = []
         score = 0.0
 
-        # Health score (0–100) up to 30 pts
-        health = float(stock.get('health_score', 0))
-        score += 0.30 * max(0.0, min(100.0, health))
-        reasons.append(f"Health {int(health)} contributes {0.30*min(100, max(0, int(health))):.0f}")
+        # 1) Health score (0–100) up to 30 pts (smooth)
+        try:
+            health = float(stock.get('health_score', 0) or 0.0)
+        except Exception:
+            health = 0.0
+        health_clamped = max(0.0, min(100.0, health))
+        health_pts = 0.30 * health_clamped
+        score += health_pts
+        reasons.append(f"Health {int(health_clamped)} contributes {health_pts:.0f}")
 
-        # Risk/Reward weighting (encourage >2)
-        rr = float(stock.get('risk_reward', 0) or 0)
-        if rr >= 2.5:
+        # 2) Risk/Reward weighting (diminishing beyond 2.5; lighter penalty <1.0 if strong trend)
+        try:
+            rr = float(stock.get('risk_reward', 0) or 0.0)
+        except Exception:
+            rr = 0.0
+
+        # Determine trend context for adaptive penalty
+        trend_ctx = str(stock.get('trend', 'Sideways'))
+        macd_tr = _safe_get(stock, ['indicators', 'MACD', 'Trend'], 'Neutral')
+
+        if rr >= 3.0:
+            score += 19; reasons.append("Risk/Reward ≥3.0 +19")
+        elif rr >= 2.5:
             score += 18; reasons.append("Risk/Reward ≥2.5 +18")
         elif rr >= 2.0:
             score += 14; reasons.append("Risk/Reward ≥2.0 +14")
@@ -67,10 +86,13 @@ def conviction_gate(
         elif rr >= 1.0:
             score += 3; reasons.append("Risk/Reward ≥1.0 +3")
         else:
-            score -= 12; reasons.append("Risk/Reward <1.0 −12")
+            # If strong directional context, soften the penalty a touch
+            softener = 4 if (trend_ctx == 'Uptrend' and macd_tr == 'Bullish') or (trend_ctx == 'Downtrend' and macd_tr == 'Bearish') else 0
+            score -= max(12 - softener, 6)
+            reasons.append(f"Risk/Reward <1.0 −{max(12 - softener, 6)}")
 
-        # Trend direction and strength
-        trend = str(stock.get('trend', 'Sideways'))
+        # 3) Trend direction and strength
+        trend = str(trend_ctx)
         if trend == 'Uptrend':
             score += 12; reasons.append("Uptrend +12")
         elif trend == 'Downtrend':
@@ -79,47 +101,50 @@ def conviction_gate(
             score += 2; reasons.append("Sideways +2")
 
         strength = str(stock.get('trend_strength', 'Neutral'))
-        if strength.lower() == 'strong':
+        s = strength.strip().lower()
+        if s == 'strong':
             score += 6; reasons.append("Strong trend +6")
-        elif strength.lower() == 'weak':
+        elif s == 'weak':
             score -= 2; reasons.append("Weak trend −2")
 
-        # RSI signals
+        # 4) RSI signals
         rsi_signal = _safe_get(stock, ['indicators', 'RSI', 'signal'], 'Neutral')
         if rsi_signal == 'Oversold':
             score += 6; reasons.append("RSI Oversold +6")
         elif rsi_signal == 'Overbought':
             score -= 6; reasons.append("RSI Overbought −6")
 
-        # MACD trend
-        macd_trend = _safe_get(stock, ['indicators', 'MACD', 'Trend'], 'Neutral')
-        if macd_trend == 'Bullish':
+        # 5) MACD trend
+        if macd_tr == 'Bullish':
             score += 9; reasons.append("MACD Bullish +9")
-        elif macd_trend == 'Bearish':
+        elif macd_tr == 'Bearish':
             score -= 9; reasons.append("MACD Bearish −9")
 
-        # SMA 20/50 cross trend
+        # 6) SMA 20/50 cross trend
         sma_trend = _safe_get(stock, ['indicators', 'SMA', 'Trend'], 'Neutral')
         if sma_trend == 'Bullish':
             score += 6; reasons.append("SMA Bullish +6")
         elif sma_trend == 'Bearish':
             score -= 6; reasons.append("SMA Bearish −6")
 
-        # Volume context
+        # 7) Volume context (reward only; avoid penalizing low volume twice)
         vol_trend = _safe_get(stock, ['indicators', 'Volume', 'Trend'], 'Neutral')
-        if isinstance(vol_trend, str) and vol_trend.lower().startswith('above'):
+        if isinstance(vol_trend, str) and vol_trend.strip().lower().startswith('above'):
             score += 4; reasons.append("Volume above avg +4")
 
-        # Volatility penalty for very high vol
-        volatility = float(_safe_get(stock, ['indicators'], {}).get('Volatility', 0) or 0)
+        # 8) Volatility penalty bands (smooth)
+        try:
+            volatility = float((_safe_get(stock, ['indicators'], {}) or {}).get('Volatility', 0) or 0.0)
+        except Exception:
+            volatility = 0.0
         if volatility >= 5.0:
             score -= 6; reasons.append("Volatility ≥5% −6")
         elif volatility >= 3.0:
             score -= 3; reasons.append("Volatility ≥3% −3")
 
-        # Action preference bias
+        # 9) Action preference bias (case-insensitive)
         action = str(stock.get('action', 'Watch'))
-        if prefer_action and action == prefer_action:
+        if pref and action.strip().lower() == pref:
             score += 4; reasons.append(f"Prefers {prefer_action} +4")
 
         # Clamp and annotate
@@ -167,12 +192,14 @@ def horizon_recommendation(stock: Dict[str, Any]) -> Dict[str, Any]:
         if macd_trend == 'Bearish': sell += 12
         if rr >= 2.0: buy += 6
         if rr < 1.0: sell += 6
-        if vol >= 5.0: buy -= 4; sell -= 4  # uncertainty penalty
+        # uncertainty penalty (don’t bias direction, reduce both)
+        if vol >= 5.0: buy -= 4; sell -= 4
         if trend == 'Uptrend': buy += 4
         if trend == 'Downtrend': sell += 4
-        if strength == 'strong': buy += 2 if buy >= sell else 0; sell += 2 if sell > buy else 0
-        if abs(buy - sell) < 8: action = 'Hold'
-        else: action = 'Buy' if buy > sell else 'Sell'
+        if strength == 'strong':
+            if buy >= sell: buy += 2
+            else: sell += 2
+        action = 'Hold' if abs(buy - sell) < 8 else ('Buy' if buy > sell else 'Sell')
         conf = max(10.0, min(95.0, max(buy, sell)))
         return {'action': action, 'confidence': round(conf, 1)}
 
@@ -188,8 +215,7 @@ def horizon_recommendation(stock: Dict[str, Any]) -> Dict[str, Any]:
         if health < 40: sell += 5
         if macd_trend == 'Bullish': buy += 4
         if macd_trend == 'Bearish': sell += 4
-        if abs(buy - sell) < 8: action = 'Hold'
-        else: action = 'Buy' if buy > sell else 'Sell'
+        action = 'Hold' if abs(buy - sell) < 8 else ('Buy' if buy > sell else 'Sell')
         conf = max(10.0, min(95.0, max(buy, sell)))
         return {'action': action, 'confidence': round(conf, 1)}
 
@@ -201,11 +227,9 @@ def horizon_recommendation(stock: Dict[str, Any]) -> Dict[str, Any]:
         if health < 40: sell += 15
         if sma_trend == 'Bullish': buy += 8
         if sma_trend == 'Bearish': sell += 8
-        # Favor balanced risk/reward for long-term
         if rr >= 1.5: buy += 5
         if rr < 1.0: sell += 5
-        if abs(buy - sell) < 8: action = 'Hold'
-        else: action = 'Buy' if buy > sell else 'Sell'
+        action = 'Hold' if abs(buy - sell) < 8 else ('Buy' if buy > sell else 'Sell')
         conf = max(10.0, min(95.0, max(buy, sell)))
         return {'action': action, 'confidence': round(conf, 1)}
 
@@ -214,16 +238,25 @@ def horizon_recommendation(stock: Dict[str, Any]) -> Dict[str, Any]:
     long = decide_long()
 
     actions = [short['action'], medium['action'], long['action']]
-    same = len({a for a in actions if a != 'Hold'})
-    if actions.count('Buy') >= 2 or actions.count('Sell') >= 2:
-        alignment = 100 if len(set(actions)) == 1 else 75
-    elif same >= 2:
+    # Prefer 'Hold' on ties between Buy/Sell; otherwise use majority
+    buy_count = actions.count('Buy')
+    sell_count = actions.count('Sell')
+    if buy_count == sell_count and buy_count >= 1:
+        overall_action = 'Hold'
+    else:
+        overall_action = 'Buy' if buy_count > sell_count else ('Sell' if sell_count > buy_count else 'Hold')
+
+    # Alignment: 100 if all equal and not Hold; 75 if 2 agree; 66 if 2 non-Hold agree but 3rd Hold; else 33
+    if len(set(actions)) == 1 and actions[0] != 'Hold':
+        alignment = 100
+    elif buy_count >= 2 or sell_count >= 2:
+        alignment = 75
+    elif len({a for a in actions if a != 'Hold'}) >= 1 and (buy_count == 2 or sell_count == 2 or (buy_count == 1 and sell_count == 1)):
         alignment = 66
     else:
         alignment = 33
 
     overall_conf = round((short['confidence'] + medium['confidence'] + long['confidence']) / 3.0, 1)
-    overall_action = max(['Buy', 'Hold', 'Sell'], key=lambda a: actions.count(a))
 
     return {
         'alignment': alignment,
@@ -286,15 +319,15 @@ def _score_for_horizon(stock: Dict[str, Any], horizon: str) -> float:
 
     if horizon == 'short_term':
         score += 0.35 * conv + 0.35 * conf + 6.0 * (rr - 1.0)
-        # Momentum + breakouts
-        score += min(max(ret_5, -5), 5)  # clamp contribution
+        # Momentum + breakouts (clamped)
+        score += max(-5.0, min(5.0, ret_5))
         if hist_slope > 0: score += 4
         if macd_tr == 'Bullish': score += 3
         if rsi_sig == 'Oversold': score += 2
         if rsi_sig == 'Overbought': score -= 3
-        # Close to breakout (small positive distance to R1)
+        # Close to breakout (but avoid if too close to support)
         if 0 < dist_r1 < 0.03: score += 3
-        if dist_s1 < 0.02: score -= 2  # tight to stop
+        if dist_s1 < 0.02: score -= 2
         # Volatility penalty
         if vol > 5: score -= 4
         elif vol > 3: score -= 2
@@ -303,7 +336,7 @@ def _score_for_horizon(stock: Dict[str, Any], horizon: str) -> float:
         score += 0.4 * conv + 0.35 * conf + 9.0 * (rr - 1.0)
         if sma_tr == 'Bullish': score += 5
         if trend == 'Uptrend': score += 3
-        score += min(max(ret_21, -10), 10) * 0.4
+        score += 0.4 * max(-10.0, min(10.0, ret_21))
         if macd_tr == 'Bullish': score += 2
         if vol > 5: score -= 5
         elif vol > 3: score -= 3
@@ -312,8 +345,8 @@ def _score_for_horizon(stock: Dict[str, Any], horizon: str) -> float:
         score += 0.45 * conv + 0.3 * conf + 7.0 * (rr - 1.0)
         if trend == 'Uptrend': score += 5
         if strength == 'strong': score += 3
-        score += min(max(ret_63, -20), 20) * 0.3
-        score += (health - 50) * 0.15  # center at 50
+        score += 0.3 * max(-20.0, min(20.0, ret_63))
+        score += 0.15 * (health - 50.0)
         if vol > 5: score -= 6
         elif vol > 3: score -= 4
 
@@ -346,7 +379,12 @@ def generate_picks(stocks: List[Dict[str, Any]], top_n: int = 5) -> Dict[str, An
         try:
             candles = (stock.get('chart') or {}).get('candles') or []
             if candles:
-                closes = [float(c['y'][3]) for c in candles[-30:] if c and c.get('y')]
+                closes = []
+                for c in candles[-30:]:
+                    try:
+                        closes.append(float(c['y'][3]))
+                    except Exception:
+                        continue
                 spark = closes
         except Exception:
             spark = []
@@ -424,69 +462,110 @@ def generate_picks(stocks: List[Dict[str, Any]], top_n: int = 5) -> Dict[str, An
     }
 
 
-# ----------------- Optional LLM Rationales (Ollama) -----------------
+# ----------------- LLM Enrichment (Ollama / qwen2:7b) -----------------
 
-def _ollama_generate(prompt: str, *, model: str, host: str, timeout: int = 8) -> str:
-    """Call local Ollama to generate a short rationale. Returns plain text or ''."""
-    try:
-        url = f"{host.rstrip('/')}/api/generate"
-        resp = requests.post(url, json={
-            'model': model,
-            'prompt': prompt,
-            'options': {
-                'temperature': 0.2,
-                'num_ctx': 2048
-            }
-        }, timeout=timeout)
-        if resp.status_code != 200:
-            return ''
-        # Ollama streams tokens by default; but in JSON mode it may return one object.
-        # Attempt to parse as one-shot; if it's a stream, just read text content.
-        try:
-            data = resp.json()
-            txt = data.get('response', '') if isinstance(data, dict) else ''
-            return (txt or '').strip()
-        except Exception:
-            return resp.text.strip()
-    except Exception:
-        return ''
-
-
-def enrich_picks_with_llm(picks: Dict[str, Any], universe: str = 'n50') -> Dict[str, Any]:
-    """Attach a short natural-language rationale (llm_reason) to each pick using Ollama if configured.
-
-    Controlled by environment variables:
-      - OLLAMA_MODEL (e.g., 'llama3.1:8b-instruct')
-      - OLLAMA_HOST (default 'http://localhost:11434')
-    Fails gracefully if Ollama is not available.
+def enrich_picks_with_llm(picks: Dict[str, Any], universe: str | None = None) -> Dict[str, Any]:
     """
-    model = os.getenv('OLLAMA_MODEL')
-    if not model:
+    Add concise natural-language rationales to each pick using a local Ollama model.
+    - Honors env OLLAMA_MODEL; defaults to 'qwen2:7b'
+    - Talks to http://localhost:11434 (Ollama default)
+    - Non-fatal: on any exception, returns original picks unchanged
+
+    The structure of `picks` is preserved; each item gets 'llm_reason' text.
+    """
+    import os, json
+    from textwrap import dedent
+
+    model = os.getenv("OLLAMA_MODEL", "qwen2:7b")
+    host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    timeout = float(os.getenv("OLLAMA_TIMEOUT", "18"))  # seconds
+    endpoint = f"{host.rstrip('/')}/api/generate"
+
+    try:
+        import requests
+    except Exception:
+        # requests not available; return unchanged
         return picks
-    host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
 
-    def build_prompt(item: Dict[str, Any], hz: str) -> str:
-        rr = float(item.get('rr', 0) or 0)
-        rsi = item.get('rsi', {})
-        macd = item.get('macd', {})
-        trend = item.get('trend', 'Sideways')
-        ret1 = item.get('ret1m', 0.0)
-        ret3 = item.get('ret3m', 0.0)
-        action = 'Buy' if item.get('action') == 'buy' else ('Sell' if item.get('action') == 'sell' else item.get('action'))
-        return (
-            f"You are an equity trading assistant. In 2 short sentences, justify a {action} for {item.get('name') or item.get('symbol')} "
-            f"({hz}) using these facts: RR={rr:.1f}, Trend={trend}, MACD={macd.get('trend','')}, RSI={rsi.get('value','')} ({rsi.get('signal','')}). "
-            f"Performance 1M={ret1:+.1f}%, 3M={ret3:+.1f}%. Keep it concise and factual; no disclaimers."
-        )
+    def _brief(item: Dict[str, Any]) -> str:
+        # Keep it deterministic and compact for UI chips
+        return dedent(f"""
+        Symbol: {item.get('symbol')}
+        Name: {item.get('name')}
+        Horizon: {item.get('horizon')}
+        Action: {item.get('action')}
+        Confidence: {item.get('confidence')}
+        Score: {item.get('score')}
+        Price: {item.get('price')}
+        RR: {item.get('rr')}
+        Trend: {item.get('trend')}
+        RSI: {((item.get('rsi') or {}).get('value'))} ({((item.get('rsi') or {}).get('signal'))})
+        MACD Trend: {((item.get('macd') or {}).get('trend'))}
+        1M Ret%: {item.get('ret1m')}
+        3M Ret%: {item.get('ret3m')}
+        """).strip()
 
-    for hz in ('short', 'medium', 'long'):
-        for bucket in ('buy', 'sell'):
-            items = picks.get(hz, {}).get(bucket, [])
-            for it in items:
-                if it.get('llm_reason'):
-                    continue
-                prompt = build_prompt(it, hz)
-                txt = _ollama_generate(prompt, model=model, host=host)
-                if txt:
-                    it['llm_reason'] = txt
-    return picks
+    def _prompt(items: List[Dict[str, Any]], horizon: str) -> str:
+        bullets = "\n\n".join(_brief(x) for x in items)
+        return dedent(f"""
+        You are an equity trading assistant. Write ONE short rationale (max 2 sentences, ~40 words)
+        per item explaining why the suggested action is reasonable, citing 2–3 concrete signals
+        (trend/RSI/MACD/RR/momentum). Avoid disclaimers and generic language. No emojis.
+
+        Universe: {universe or 'unspecified'}
+        Horizon: {horizon}
+
+        Items:
+        {bullets}
+
+        Respond as a JSON list of strings, in the SAME order as items, length = {len(items)}.
+        """).strip()
+
+    def _call_llm(items: List[Dict[str, Any]], horizon: str) -> List[str]:
+        if not items:
+            return []
+        payload = {
+            "model": model,
+            "prompt": _prompt(items, horizon),
+            "stream": False,
+            "options": {
+                "temperature": 0.2,
+                "top_p": 0.9
+            }
+        }
+        try:
+            resp = requests.post(endpoint, json=payload, timeout=timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            text = (data.get("response") or "").strip()
+            # Expect JSON list; be forgiving
+            try:
+                arr = json.loads(text)
+                if isinstance(arr, list) and len(arr) == len(items):
+                    return [str(x) for x in arr]
+            except Exception:
+                pass
+            # Fallback: split by newline
+            lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+            if len(lines) >= len(items):
+                return lines[:len(items)]
+            # Otherwise pad
+            return (lines + [""] * len(items))[:len(items)]
+        except Exception:
+            return [""] * len(items)
+
+    # Enrich each bucket
+    out = {k: {"buy": list(v.get("buy", [])), "sell": list(v.get("sell", []))}
+           for k, v in picks.items()}
+
+    for horizon_key in ("short", "medium", "long"):
+        for side in ("buy", "sell"):
+            items = out.get(horizon_key, {}).get(side, [])
+            reasons = _call_llm(items, horizon_key)
+            for i, r in enumerate(reasons):
+                try:
+                    items[i]["llm_reason"] = r.strip()
+                except Exception:
+                    pass
+
+    return out

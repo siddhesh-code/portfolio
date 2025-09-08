@@ -242,54 +242,6 @@ def movers_api():
     losers = [s for s in ranked if (s.get('day_change', 0) or 0) < 0][:limit]
     return jsonify({'gainers': gainers, 'losers': losers})
 
-@app.route('/api/debug/missing')
-def api_debug_missing():
-    """Report which symbols in a selected universe failed to fetch/format.
-
-    Query params:
-      - u: n50|n500|watch (default n50)
-      - limit: cap symbols (default 100)
-      - sample: 0/1 randomly sample before limiting
-    Returns: {requested: [...], fetched: [...], missing: [...], requested_count, fetched_count}
-    """
-    u = (request.args.get('u') or 'n50').lower()
-    try:
-        limit = int(request.args.get('limit', 100))
-    except Exception:
-        limit = 100
-    sample = request.args.get('sample', '0') in ('1', 'true', 'yes')
-
-    # Resolve universe
-    if u == 'n500':
-        symbols = NIFTY500_SYMBOLS
-    elif u == 'watch':
-        wl = sorted(list(app.state['watchlist']))
-        symbols = wl if wl else NIFTY50_SYMBOLS
-    else:
-        symbols = NIFTY50_SYMBOLS
-
-    # Build request list
-    syms = list(symbols)
-    if sample and len(syms) > limit:
-        import random
-        syms = random.sample(syms, limit)
-    else:
-        syms = syms[:limit]
-
-    # Fetch
-    raw = get_nifty50_data(syms)
-    fetched = sorted(list(raw.keys()))
-    missing = sorted([s for s in syms if s not in raw])
-    return jsonify({
-        'universe': u,
-        'requested_count': len(syms),
-        'fetched_count': len(fetched),
-        'missing_count': len(missing),
-        'requested': syms,
-        'fetched': fetched,
-        'missing': missing
-    })
-
 
 # ---------------------- AI Pipeline (conviction, horizons, picks) ----------------------
 
@@ -307,7 +259,6 @@ def _resolve_universe(param: str):
         return 'n500', NIFTY500_SYMBOLS
     if u == 'watch':
         return 'watch', sorted(list(app.state['watchlist']))
-    # default when param missing/invalid
     return 'n50', NIFTY50_SYMBOLS
 
 
@@ -408,8 +359,7 @@ def picks_api():
     elif u == 'watch':
         wl = sorted(list(app.state['watchlist']))
         symbols = wl if wl else NIFTY50_SYMBOLS
-    else:
-        symbols = NIFTY50_SYMBOLS
+
 
     market_data = get_nifty50_data(symbols)
     analysis = format_stock_analysis(market_data)
@@ -573,15 +523,6 @@ def healthz():
         return jsonify({'ok': True, 'time': datetime.utcnow().isoformat() + 'Z'}), 200
     except Exception:
         return jsonify({'ok': False}), 500
-
-# Silence Chrome DevTools well-known probe (used by some Chromium builds)
-@app.route('/.well-known/appspecific/com.chrome.devtools.json')
-def chrome_devtools_probe():
-    try:
-        # Return minimal JSON to avoid 404 spam in logs
-        return jsonify({"ok": True}), 200
-    except Exception:
-        return jsonify({}), 200
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8080)

@@ -1,160 +1,209 @@
+/* ==========================================================================
+   Base theme tokens (safe to tweak) + accessibility upgrades
+   ========================================================================== */
+:root {
+  --c-fg: #222;                 /* primary text */
+  --c-fg-muted: #555;           /* secondary text (replaces low-contrast #999) */
+  --c-bg: #ffffff;              /* page background */
+  --c-surface: #ffffff;         /* cards/tables bg */
+  --c-surface-alt: #f6f6f6;     /* zebra rows, alt surfaces */
+  --c-border: #e6e6e6;          /* subtle borders */
+  --c-link: #0366d6;            /* accessible link blue */
+  --c-link-hover: #024ea4;
+
+  --c-success: #2e7d32;         /* passed */
+  --c-warn: #ef6c00;            /* skipped/xfailed/rerun */
+  --c-danger: #c62828;          /* error/failed/xpassed */
+  --c-accent: #4caf50;          /* sort arrows & primary button */
+
+  --radius: 3px;
+  --space-1: 5px;
+  --space-2: 10px;
+  --mono: "Courier New", Courier, monospace;
+}
+
+/* Optional dark mode (no markup changes needed) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-fg: #eaeef2;
+    --c-fg-muted: #b8c0cc;
+    --c-bg: #0f141a;
+    --c-surface: #121820;
+    --c-surface-alt: #18202a;
+    --c-border: #243142;
+    --c-link: #7aa2f7;
+    --c-link-hover: #9bb8ff;
+    --c-success: #7bd88f;
+    --c-warn: #ffb454;
+    --c-danger: #ff6e6e;
+    --c-accent: #7bd88f;
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
 body {
   font-family: Helvetica, Arial, sans-serif;
   font-size: 12px;
   /* do not increase min-width as some may use split screens */
   min-width: 800px;
-  color: #999;
+  color: var(--c-fg-muted);
+  background: var(--c-bg);
 }
 
-h1 {
-  font-size: 24px;
-  color: black;
-}
-
-h2 {
-  font-size: 16px;
-  color: black;
-}
-
-p {
-  color: black;
-}
+h1 { font-size: 24px; color: var(--c-fg); }
+h2 { font-size: 16px; color: var(--c-fg); }
+p  { color: var(--c-fg); }
 
 a {
-  color: #999;
+  color: var(--c-link);
+  text-decoration: underline;
+}
+a:hover { color: var(--c-link-hover); }
+a:focus-visible {
+  outline: 2px solid var(--c-link);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
 
-table {
-  border-collapse: collapse;
-}
+table { border-collapse: collapse; }
 
-/******************************
- * SUMMARY INFORMATION
- ******************************/
+/* ==========================================================================
+   SUMMARY INFORMATION
+   ========================================================================== */
 #environment td {
-  padding: 5px;
-  border: 1px solid #e6e6e6;
+  padding: var(--space-1);
+  border: 1px solid var(--c-border);
   vertical-align: top;
 }
-#environment tr:nth-child(odd) {
-  background-color: #f6f6f6;
+#environment tr:nth-child(odd) { background-color: var(--c-surface-alt); }
+#environment ul { margin: 0; padding: 0 20px; }
+
+#environment-header h2:hover::after {
+  content: " (hide details)";
+  color: var(--c-fg-muted);
+  font-style: italic;
+  cursor: pointer;
+  font-size: 12px;
 }
-#environment ul {
-  margin: 0;
-  padding: 0 20px;
+#environment-header.collapsed h2:hover::after {
+  content: " (show details)";
+  color: var(--c-fg-muted);
+  font-style: italic;
+  cursor: pointer;
+  font-size: 12px;
 }
 
-/******************************
- * TEST RESULT COLORS
- ******************************/
+/* ==========================================================================
+   TEST RESULT COLORS
+   ========================================================================== */
 span.passed,
-.passed .col-result {
-  color: green;
-}
+.passed .col-result { color: var(--c-success); }
 
 span.skipped,
 span.xfailed,
 span.rerun,
 .skipped .col-result,
 .xfailed .col-result,
-.rerun .col-result {
-  color: orange;
-}
+.rerun .col-result { color: var(--c-warn); }
 
 span.error,
 span.failed,
 span.xpassed,
 .error .col-result,
 .failed .col-result,
-.xpassed .col-result {
-  color: red;
-}
+.xpassed .col-result { color: var(--c-danger); }
 
-.col-links__extra {
-  margin-right: 3px;
-}
+.col-links__extra { margin-right: 3px; }
 
-/******************************
- * RESULTS TABLE
- *
- * 1. Table Layout
- * 2. Extra
- * 3. Sorting items
- *
- ******************************/
-/*------------------
- * 1. Table Layout
- *------------------*/
+/* ==========================================================================
+   RESULTS TABLE
+   1) Layout & sticky header
+   2) Extra blocks
+   3) Sorting
+   ========================================================================== */
+
+/* 1) Layout & sticky header */
 #results-table {
-  border: 1px solid #e6e6e6;
-  color: #999;
+  border: 1px solid var(--c-border);
+  color: var(--c-fg-muted);
   font-size: 12px;
   width: 100%;
+  background: var(--c-surface);
 }
 #results-table th,
 #results-table td {
-  padding: 5px;
-  border: 1px solid #e6e6e6;
+  padding: var(--space-1);
+  border: 1px solid var(--c-border);
   text-align: left;
 }
 #results-table th {
   font-weight: bold;
+  position: sticky;     /* keep headers visible when scrolling */
+  top: 0;
+  z-index: 2;
+  background: var(--c-surface);
 }
 
-/*------------------
- * 2. Extra
- *------------------*/
+/* 2) Extra (logs & media) */
 .logwrapper {
   max-height: 230px;
-  overflow-y: scroll;
-  background-color: #e6e6e6;
+  overflow-y: auto;
+  background-color: var(--c-surface-alt);
+  border-radius: var(--radius);
 }
-.logwrapper.expanded {
-  max-height: none;
-}
-.logwrapper.expanded .logexpander:after {
-  content: "collapse [-]";
-}
+.logwrapper.expanded { max-height: none; }
+.logwrapper.expanded .logexpander:after { content: "collapse [-]"; }
+
 .logwrapper .logexpander {
   z-index: 1;
   position: sticky;
   top: 10px;
   width: max-content;
-  border: 1px solid;
-  border-radius: 3px;
+  border: 1px solid var(--c-fg-muted);
+  border-radius: var(--radius);
   padding: 5px 7px;
   margin: 10px 0 10px calc(100% - 80px);
   cursor: pointer;
-  background-color: #e6e6e6;
+  background-color: var(--c-surface-alt);
+  color: var(--c-fg-muted);
 }
-.logwrapper .logexpander:after {
-  content: "expand [+]";
-}
+.logwrapper .logexpander:after { content: "expand [+]"; }
 .logwrapper .logexpander:hover {
-  color: #000;
-  border-color: #000;
+  color: var(--c-fg);
+  border-color: var(--c-fg);
 }
+.logwrapper .logexpander:focus-visible {
+  outline: 2px solid var(--c-link);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
 .logwrapper .log {
   min-height: 40px;
   position: relative;
   top: -50px;
   height: calc(100% + 50px);
-  border: 1px solid #e6e6e6;
-  color: black;
+  border: 1px solid var(--c-border);
+  color: var(--c-fg);
   display: block;
-  font-family: "Courier New", Courier, monospace;
-  padding: 5px;
+  font-family: var(--mono);
+  padding: var(--space-1);
   padding-right: 80px;
   white-space: pre-wrap;
+  background: var(--c-surface);
 }
 
 div.media {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--c-border);
   float: right;
   height: 240px;
   margin: 0 5px;
   overflow: hidden;
   width: 320px;
+  background: var(--c-surface);
+  border-radius: var(--radius);
 }
 
 .media-container {
@@ -165,27 +214,33 @@ div.media {
   overflow: hidden;
   height: 200px;
 }
-
-.media-container--fullscreen {
-  grid-template-columns: 0px auto 0px;
-}
+.media-container--fullscreen { grid-template-columns: 0px auto 0px; }
 
 .media-container__nav--right,
 .media-container__nav--left {
   text-align: center;
   cursor: pointer;
+  user-select: none;
+}
+.media-container__nav--right:focus-visible,
+.media-container__nav--left:focus-visible {
+  outline: 2px solid var(--c-link);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
 
 .media-container__viewport {
   cursor: pointer;
   text-align: center;
   height: inherit;
+  background: var(--c-surface);
 }
 .media-container__viewport img,
 .media-container__viewport video {
   object-fit: cover;
   width: 100%;
   max-height: 100%;
+  border-radius: var(--radius);
 }
 
 .media__name,
@@ -195,56 +250,35 @@ div.media {
   justify-content: space-around;
   flex: 0 0 25px;
   align-items: center;
+  color: var(--c-fg-muted);
 }
 
-.collapsible td:not(.col-links) {
-  cursor: pointer;
-}
+/* Row interactivity */
+.collapsible td:not(.col-links) { cursor: pointer; }
 .collapsible td:not(.col-links):hover::after {
   color: #bbb;
   font-style: italic;
   cursor: pointer;
 }
 
-.col-result {
-  width: 130px;
-}
-.col-result:hover::after {
-  content: " (hide details)";
-}
+/* Result column */
+.col-result { width: 130px; }
+.col-result:hover::after { content: " (hide details)"; }
+.col-result.collapsed:hover::after { content: " (show details)"; }
 
-.col-result.collapsed:hover::after {
-  content: " (show details)";
-}
-
-#environment-header h2:hover::after {
-  content: " (hide details)";
-  color: #bbb;
-  font-style: italic;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-#environment-header.collapsed h2:hover::after {
-  content: " (show details)";
-  color: #bbb;
-  font-style: italic;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-/*------------------
- * 3. Sorting items
- *------------------*/
-.sortable {
-  cursor: pointer;
+/* 3) Sorting indicators */
+.sortable { cursor: pointer; }
+.sortable:focus-visible {
+  outline: 2px solid var(--c-link);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
 .sortable.desc:after {
   content: " ";
   position: relative;
   left: 5px;
   bottom: -12.5px;
-  border: 10px solid #4caf50;
+  border: 10px solid var(--c-accent);
   border-bottom: 0;
   border-left-color: transparent;
   border-right-color: transparent;
@@ -254,19 +288,18 @@ div.media {
   position: relative;
   left: 5px;
   bottom: 12.5px;
-  border: 10px solid #4caf50;
+  border: 10px solid var(--c-accent);
   border-top: 0;
   border-left-color: transparent;
   border-right-color: transparent;
 }
 
-.hidden, .summary__reload__button.hidden {
-  display: none;
-}
+/* ==========================================================================
+   Controls & Visibility
+   ========================================================================== */
+.hidden, .summary__reload__button.hidden { display: none; }
 
-.summary__data {
-  flex: 0 0 550px;
-}
+.summary__data { flex: 0 0 550px; }
 .summary__reload {
   flex: 1 1;
   display: flex;
@@ -275,45 +308,52 @@ div.media {
 .summary__reload__button {
   flex: 0 0 300px;
   display: flex;
-  color: white;
+  color: #fff;
   font-weight: bold;
-  background-color: #4caf50;
+  background-color: var(--c-accent);
   text-align: center;
   justify-content: center;
   align-items: center;
-  border-radius: 3px;
+  border-radius: var(--radius);
   cursor: pointer;
+  border: 1px solid transparent;
 }
-.summary__reload__button:hover {
-  background-color: #46a049;
+.summary__reload__button:hover { background-color: #46a049; }
+.summary__reload__button:focus-visible {
+  outline: 2px solid var(--c-link);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
-.summary__spacer {
-  flex: 0 0 550px;
-}
+.summary__spacer { flex: 0 0 550px; }
 
-.controls {
-  display: flex;
-  justify-content: space-between;
-}
+.controls { display: flex; justify-content: space-between; }
 
 .filters,
-.collapse {
-  display: flex;
-  align-items: center;
-}
+.collapse { display: flex; align-items: center; }
 .filters button,
 .collapse button {
-  color: #999;
+  color: var(--c-fg-muted);
   border: none;
   background: none;
   cursor: pointer;
   text-decoration: underline;
 }
 .filters button:hover,
-.collapse button:hover {
-  color: #ccc;
+.collapse button:hover { color: #ccc; }
+.filters button:focus-visible,
+.collapse button:focus-visible {
+  outline: 2px solid var(--c-link);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
+.filter__label { margin-right: 10px; }
 
-.filter__label {
-  margin-right: 10px;
+/* ==========================================================================
+   Print improvements (cleaner hard copies)
+   ========================================================================== */
+@media print {
+  a { text-decoration: none; color: inherit; }
+  .logwrapper { max-height: none; overflow: visible; }
+  .sortable:after { content: none !important; }
+  .summary__reload, .summary__reload__button, .media-container__nav--left, .media-container__nav--right { display: none !important; }
 }
