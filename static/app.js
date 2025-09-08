@@ -68,13 +68,23 @@ document.addEventListener('DOMContentLoaded', function() {
         chart.render().then(() => node.classList.add('rendered'));
     });
 
-    // Picks filters
+    // Picks filters + URL prefill
     const pMin = document.getElementById('pckMinScore');
     const pMinVal = document.getElementById('pckMinScoreVal');
     const pBuy = document.getElementById('pckShowBuy');
     const pSell = document.getElementById('pckShowSell');
     const pSigBtns = Array.from(document.querySelectorAll('.pck-sig-toggle'));
     const pReset = document.getElementById('pckResetFilters');
+    const params = new URLSearchParams(window.location.search);
+    const onPicksPage = !!document.getElementById('picks');
+
+    if (onPicksPage) {
+        const act = (params.get('action') || '').toLowerCase();
+        if (act === 'buy') { if (pSell) pSell.checked = false; if (pBuy) pBuy.checked = true; }
+        if (act === 'sell') { if (pBuy) pBuy.checked = false; if (pSell) pSell.checked = true; }
+        const minS = params.get('minScore');
+        if (minS && pMin) { pMin.value = String(parseInt(minS,10) || 0); if (pMinVal) pMinVal.textContent = pMin.value; }
+    }
 
     function pGetSignals() { return pSigBtns.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.signal.toLowerCase()); }
     function applyPicksFilters() {
@@ -100,6 +110,46 @@ document.addEventListener('DOMContentLoaded', function() {
     pSell?.addEventListener('change', applyPicksFilters);
     pReset?.addEventListener('click', () => { if (pMin) { pMin.value = '0'; pMinVal.textContent = '0'; } if (pBuy) pBuy.checked = true; if (pSell) pSell.checked = true; pSigBtns.forEach(b => { b.setAttribute('aria-pressed','false'); b.classList.remove('active'); }); applyPicksFilters(); });
     applyPicksFilters();
+
+    // Toggle LLM rationales on picks page
+    const toggleWhy = document.getElementById('toggleRationales');
+    if (toggleWhy && document.getElementById('picks')) {
+        toggleWhy.addEventListener('click', () => {
+            const container = document.getElementById('picks');
+            container.classList.toggle('show-rationales');
+        });
+    }
+
+    // Quick alert from Movers list
+    document.querySelectorAll('.mvr-alert').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const symbol = btn.getAttribute('data-symbol');
+            const price = parseFloat(btn.getAttribute('data-price') || '0');
+            const dir = btn.getAttribute('data-dir');
+            if (!symbol || !price) return;
+            const def = dir === 'up' ? (price * 1.02).toFixed(2) : (price * 0.98).toFixed(2);
+            const input = prompt(`Create ${dir === 'up' ? 'above' : 'below'} alert for ${symbol}. Trigger price ₹`, def);
+            const trigger = parseFloat(input || '0');
+            if (!trigger || trigger <= 0) return;
+            try {
+                await fetch('/api/alerts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, condition: dir === 'up' ? 'above' : 'below', price: trigger })
+                });
+                // Toast success
+                const container = document.getElementById('toastContainer');
+                if (container) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'toast align-items-center text-white bg-success border-0';
+                    wrapper.innerHTML = `<div class="d-flex"><div class="toast-body">Alert set for ${symbol} at ₹${trigger}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+                    container.appendChild(wrapper);
+                    new bootstrap.Toast(wrapper, { delay: 2500 }).show();
+                }
+            } catch (err) { console.error(err); }
+        });
+    });
 
     // Reversal filters (score, signals, direction)
     const minScoreInput = document.getElementById('revMinScore');

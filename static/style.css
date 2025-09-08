@@ -806,6 +806,8 @@ body::before {
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--glass-border);
 }
+.metric-chip[role="button"] { transition: transform .12s ease, box-shadow .12s ease; }
+.metric-chip[role="button"]:hover { transform: translateY(-1px); box-shadow: var(--glow); }
 
 /* Reversals dashboard */
 .rev-list .list-group-item {
@@ -844,11 +846,34 @@ body::before {
 }
 .rev-signal-chip {
     font-size: .75rem;
-    padding: .15rem .4rem;
+    padding: .15rem .6rem;
     border-radius: .4rem;
-    background: rgba(255,255,255,0.05);
-    border: 1px dashed var(--glass-border);
+    /* Stronger contrast and enforce against overrides */
+    background: rgba(148, 163, 184, 0.18) !important;
+    border: 1px dashed rgba(148, 163, 184, 0.45) !important;
+    color: #E2E8F0 !important;
+    letter-spacing: .2px;
 }
+
+.rev-right .metric-chip {
+    position: relative;
+    z-index: 1;
+    /* Stronger, opaque-on-dark chip so it never looks washed out */
+    background: rgba(11, 15, 25, 0.88);
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #E2E8F0;
+    font-weight: 600;
+    gap: .5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+.rev-right .metric-chip span { color: inherit; }
+.rev-sparkline { position: relative; z-index: 0; }
+
+.pick-rationale {
+    display: none;
+    color: var(--muted);
+}
+#picks.show-rationales .pick-rationale { display: block; }
 
 .rev-sparkline { width: 130px; height: 36px; }
 

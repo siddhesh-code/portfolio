@@ -130,7 +130,8 @@ def backtest_strategy(df, signals, initial_capital=100000.0):
     portfolio['total'] = portfolio['cash'] + portfolio['holdings']
     
     # Returns
-    portfolio['returns'] = portfolio['total'].pct_change()
+    # FutureWarning: default fill_method in pct_change is changing; be explicit
+    portfolio['returns'] = portfolio['total'].pct_change(fill_method=None)
     
     # Performance metrics
     performance = {
@@ -252,6 +253,9 @@ def calculate_technical_indicators(df):
     """Calculate all technical indicators for a given DataFrame"""
     if df.empty:
         return None
+    # Work on a deep copy to avoid SettingWithCopy warnings when the caller
+    # passes a slice of a larger DataFrame
+    df = df.copy(deep=True)
         
     # RSI
     rsi = RSIIndicator(close=df['Close'], window=RSI_PERIOD)
@@ -315,22 +319,20 @@ def calculate_technical_indicators(df):
         df['ADI'] = ad.acc_dist_index()
     
     # Calculate price changes and volatility
-    df['Daily_Return'] = df['Close'].pct_change()
-    df['Volatility'] = df['Daily_Return'].rolling(
-        window=VOLATILITY_PERIOD
-    ).std()
+    df.loc[:, 'Daily_Return'] = df['Close'].pct_change()
+    df.loc[:, 'Volatility'] = df['Daily_Return'].rolling(window=VOLATILITY_PERIOD).std()
     
     # Add support/resistance levels
     support_levels, resistance_levels = identify_support_resistance(df)
-    df['Support_1'] = support_levels[0] if len(support_levels) > 0 else None
-    df['Support_2'] = support_levels[1] if len(support_levels) > 1 else None
-    df['Resistance_1'] = resistance_levels[0] if len(resistance_levels) > 0 else None
-    df['Resistance_2'] = resistance_levels[1] if len(resistance_levels) > 1 else None
+    df.loc[:, 'Support_1'] = support_levels[0] if len(support_levels) > 0 else None
+    df.loc[:, 'Support_2'] = support_levels[1] if len(support_levels) > 1 else None
+    df.loc[:, 'Resistance_1'] = resistance_levels[0] if len(resistance_levels) > 0 else None
+    df.loc[:, 'Resistance_2'] = resistance_levels[1] if len(resistance_levels) > 1 else None
     
     # Add price patterns
     patterns = analyze_price_patterns(df)
     for pattern, value in patterns.items():
-        df[f'Pattern_{pattern}'] = value
+        df.loc[:, f'Pattern_{pattern}'] = bool(value)
     
     # Generate trading signals
     signals = generate_trading_signals(df)

@@ -12,24 +12,43 @@
     </section>
 
 <section id="market" class="mb-4">
-    <div class="card glass-card shadow-sm">
+        <div class="card glass-card shadow-sm">
         <div class="card-header glass-header d-flex align-items-center justify-content-between">
-            <h4 class="mb-0">Market Insights</h4>
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0">Market Insights</h4>
+                <form method="get" class="d-flex align-items-center gap-2" aria-label="Universe selector">
+                    <label for="miUniverse" class="text-muted small mb-0">Universe</label>
+                    <select id="miUniverse" name="u" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                        <option value="n50" {% if universe=='n50' %}selected{% endif %}>NIFTY 50</option>
+                        <option value="n500" {% if universe=='n500' %}selected{% endif %}>NIFTY 500</option>
+                        <option value="watch" {% if universe=='watch' %}selected{% endif %}>Watchlist</option>
+                    </select>
+                </form>
+                <a class="btn btn-outline-light btn-sm" href="/analyze/universe?u={{ universe }}&limit=24" role="button" aria-label="Analyze selected universe">Analyze Universe</a>
+            </div>
             <span class="badge bg-success">{{ insights.sentiment or '—' }}</span>
         </div>
         <div class="card-body">
             <div class="row g-3 text-center">
                 <div class="col-6 col-md-3">
-                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Buy Signals</span> <strong>{{ insights.buy_signals }}</strong></div>
+                    <a href="/picks?u={{ universe }}&action=buy" class="text-decoration-none">
+                        <div class="metric-chip w-100 justify-content-center" role="button" aria-label="View buy signals"><span class="text-muted">Buy Signals</span> <strong>{{ insights.buy_signals }}</strong></div>
+                    </a>
                 </div>
                 <div class="col-6 col-md-3">
-                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Sell Signals</span> <strong>{{ insights.sell_signals }}</strong></div>
+                    <a href="/picks?u={{ universe }}&action=sell" class="text-decoration-none">
+                        <div class="metric-chip w-100 justify-content-center" role="button" aria-label="View sell signals"><span class="text-muted">Sell Signals</span> <strong>{{ insights.sell_signals }}</strong></div>
+                    </a>
                 </div>
                 <div class="col-6 col-md-3">
-                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Top Movers</span> <strong>{{ insights.top_movers }}</strong></div>
+                    <a href="/reversals?u={{ universe }}" class="text-decoration-none">
+                        <div class="metric-chip w-100 justify-content-center" role="button" aria-label="View top movers"><span class="text-muted">Top Movers</span> <strong>{{ insights.top_movers }}</strong></div>
+                    </a>
                 </div>
                 <div class="col-6 col-md-3">
-                    <div class="metric-chip w-100 justify-content-center"><span class="text-muted">Sentiment</span> <strong>{{ insights.sentiment }}</strong></div>
+                    <a href="/picks?u={{ universe }}" class="text-decoration-none">
+                        <div class="metric-chip w-100 justify-content-center" role="button" aria-label="View sentiment and picks"><span class="text-muted">Sentiment</span> <strong>{{ insights.sentiment }}</strong></div>
+                    </a>
                 </div>
             </div>
         </div>

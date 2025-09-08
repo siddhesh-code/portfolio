@@ -13,7 +13,7 @@
         </div>
     {% else %}
     {% for stock in stocks %}
-    <div class="col-12">
+    <div class="{{ 'col-12 col-md-6 col-lg-4' if grid_mode else 'col-12' }}">
         <div class="card stock-card h-100">
             <!-- Header: Symbol, Price, Change -->
             <div class="card-header d-flex justify-content-between align-items-center">

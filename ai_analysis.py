@@ -17,6 +17,9 @@ Where `stocks` is the list of dictionaries returned by
 """
 from __future__ import annotations
 from typing import List, Dict, Any
+import os
+import requests
+
 
 
 def _safe_get(d: Dict[str, Any], path: List[str], default=None):
@@ -419,3 +422,71 @@ def generate_picks(stocks: List[Dict[str, Any]], top_n: int = 5) -> Dict[str, An
         'medium': rank('medium_term'),
         'long': rank('long_term')
     }
+
+
+# ----------------- Optional LLM Rationales (Ollama) -----------------
+
+def _ollama_generate(prompt: str, *, model: str, host: str, timeout: int = 8) -> str:
+    """Call local Ollama to generate a short rationale. Returns plain text or ''."""
+    try:
+        url = f"{host.rstrip('/')}/api/generate"
+        resp = requests.post(url, json={
+            'model': model,
+            'prompt': prompt,
+            'options': {
+                'temperature': 0.2,
+                'num_ctx': 2048
+            }
+        }, timeout=timeout)
+        if resp.status_code != 200:
+            return ''
+        # Ollama streams tokens by default; but in JSON mode it may return one object.
+        # Attempt to parse as one-shot; if it's a stream, just read text content.
+        try:
+            data = resp.json()
+            txt = data.get('response', '') if isinstance(data, dict) else ''
+            return (txt or '').strip()
+        except Exception:
+            return resp.text.strip()
+    except Exception:
+        return ''
+
+
+def enrich_picks_with_llm(picks: Dict[str, Any], universe: str = 'n50') -> Dict[str, Any]:
+    """Attach a short natural-language rationale (llm_reason) to each pick using Ollama if configured.
+
+    Controlled by environment variables:
+      - OLLAMA_MODEL (e.g., 'llama3.1:8b-instruct')
+      - OLLAMA_HOST (default 'http://localhost:11434')
+    Fails gracefully if Ollama is not available.
+    """
+    model = os.getenv('OLLAMA_MODEL')
+    if not model:
+        return picks
+    host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+
+    def build_prompt(item: Dict[str, Any], hz: str) -> str:
+        rr = float(item.get('rr', 0) or 0)
+        rsi = item.get('rsi', {})
+        macd = item.get('macd', {})
+        trend = item.get('trend', 'Sideways')
+        ret1 = item.get('ret1m', 0.0)
+        ret3 = item.get('ret3m', 0.0)
+        action = 'Buy' if item.get('action') == 'buy' else ('Sell' if item.get('action') == 'sell' else item.get('action'))
+        return (
+            f"You are an equity trading assistant. In 2 short sentences, justify a {action} for {item.get('name') or item.get('symbol')} "
+            f"({hz}) using these facts: RR={rr:.1f}, Trend={trend}, MACD={macd.get('trend','')}, RSI={rsi.get('value','')} ({rsi.get('signal','')}). "
+            f"Performance 1M={ret1:+.1f}%, 3M={ret3:+.1f}%. Keep it concise and factual; no disclaimers."
+        )
+
+    for hz in ('short', 'medium', 'long'):
+        for bucket in ('buy', 'sell'):
+            items = picks.get(hz, {}).get(bucket, [])
+            for it in items:
+                if it.get('llm_reason'):
+                    continue
+                prompt = build_prompt(it, hz)
+                txt = _ollama_generate(prompt, model=model, host=host)
+                if txt:
+                    it['llm_reason'] = txt
+    return picks

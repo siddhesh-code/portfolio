@@ -27,7 +27,7 @@
 <body>
     <nav id="top-bar" class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/">
+            <a class="navbar-brand" href="/?u={{ universe|default('n50') }}">
                 <i class="fas fa-chart-line me-2"></i>ShivEsh Portfolio Tracker
             </a>
             <div class="ms-auto d-flex align-items-center text-white">
@@ -56,8 +56,9 @@
                         <a href="#overview" class="list-group-item list-group-item-action toc-link"><i class="bi bi-speedometer2 me-2"></i>Overview</a>
                         <a href="#market" class="list-group-item list-group-item-action toc-link"><i class="bi bi-graph-up me-2"></i>Market</a>
                         <a href="#watchlist" class="list-group-item list-group-item-action toc-link"><i class="bi bi-list-stars me-2"></i>Watchlist</a>
-                        <a href="/reversals" class="list-group-item list-group-item-action toc-link"><i class="bi bi-arrow-repeat me-2"></i>Reversals</a>
-                        <a href="/picks" class="list-group-item list-group-item-action toc-link"><i class="bi bi-lightning-charge me-2"></i>Picks</a>
+                        <a href="/reversals?u={{ universe|default('n50') }}" class="list-group-item list-group-item-action toc-link"><i class="bi bi-arrow-repeat me-2"></i>Reversals</a>
+                        <a href="/movers?u={{ universe|default('n50') }}" class="list-group-item list-group-item-action toc-link"><i class="bi bi-lightning me-2"></i>Movers</a>
+                        <a href="/picks?u={{ universe|default('n50') }}" class="list-group-item list-group-item-action toc-link"><i class="bi bi-lightning-charge me-2"></i>Picks</a>
                         <a href="#alerts" class="list-group-item list-group-item-action toc-link"><i class="bi bi-bell me-2"></i>Alerts</a>
                         <a href="#settings" class="list-group-item list-group-item-action toc-link"><i class="bi bi-gear me-2"></i>Settings</a>
                     </div>

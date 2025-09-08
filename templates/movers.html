@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="movers" class="mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-3">
+      <h2 class="mb-0">Top Movers</h2>
+      <form method="get" class="d-flex align-items-center gap-2" aria-label="Universe selector">
+        <label for="mvUniverse" class="text-muted small mb-0">Universe</label>
+        <select id="mvUniverse" name="u" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+          <option value="n50" {% if universe=='n50' %}selected{% endif %}>NIFTY 50</option>
+          <option value="n500" {% if universe=='n500' %}selected{% endif %}>NIFTY 500</option>
+          <option value="watch" {% if universe=='watch' %}selected{% endif %}>Watchlist</option>
+        </select>
+      </form>
+    </div>
+    <a href="/" class="text-decoration-none">Back to Dashboard</a>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card glass-card h-100">
+        <div class="card-header glass-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-arrow-up-right text-success"></i> Gainers</h5>
+          <span class="count-pill text-success">{{ gainers|length }}</span>
+        </div>
+        <div class="card-body">
+          {% if gainers %}
+          <div class="list-group rev-list rev-bull">
+            {% for it in gainers %}
+            <div class="list-group-item rev-item">
+              <div class="rev-left">
+                <div class="rev-title">
+                  <strong>{{ it.name or it.display_symbol or it.symbol }}</strong>
+                  <span class="rev-score">{{ '%.0f'|format(it.conviction.score|default(0)|float) }}</span>
+                  <span class="badge bg-success">+{{ '%.1f'|format(it.day_change|default(0)|float) }}%</span>
+                </div>
+                <div class="rev-subtext">{{ it.trend }} · {{ it.indicators.MACD.Trend|default('Neutral') }} · RSI {{ '%.0f'|format(it.indicators.RSI.value|default(50)|float) }} ({{ it.indicators.RSI.signal|default('Neutral') }})</div>
+                <div class="rev-signals">
+                  <a href="/analyze?symbols={{ it.symbol }}" class="rev-signal-chip text-decoration-none">Analyze</a>
+                  <button class="rev-signal-chip btn btn-sm btn-link text-decoration-none mvr-alert" data-symbol="{{ it.symbol }}" data-price="{{ '%.2f'|format(it.price|default(0)|float) }}" data-dir="up" type="button">Set Alert</button>
+                </div>
+              </div>
+              <div class="rev-right">
+                <div class="rev-price-label">Price</div>
+                <div class="rev-price">₹{{ '%.2f'|format(it.price|float) }}</div>
+                <div class="rev-sparkline mt-1" data-series='{{ (it.chart.close if it.chart and it.chart.close else [])|tojson }}'></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-muted small">No gainers detected.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card glass-card h-100">
+        <div class="card-header glass-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-arrow-down-right text-danger"></i> Losers</h5>
+          <span class="count-pill text-danger">{{ losers|length }}</span>
+        </div>
+        <div class="card-body">
+          {% if losers %}
+          <div class="list-group rev-list rev-bear">
+            {% for it in losers %}
+            <div class="list-group-item rev-item">
+              <div class="rev-left">
+                <div class="rev-title">
+                  <strong>{{ it.name or it.display_symbol or it.symbol }}</strong>
+                  <span class="rev-score danger">{{ '%.0f'|format(it.conviction.score|default(0)|float) }}</span>
+                  <span class="badge bg-danger">{{ '%.1f'|format(it.day_change|default(0)|float) }}%</span>
+                </div>
+                <div class="rev-subtext">{{ it.trend }} · {{ it.indicators.MACD.Trend|default('Neutral') }} · RSI {{ '%.0f'|format(it.indicators.RSI.value|default(50)|float) }} ({{ it.indicators.RSI.signal|default('Neutral') }})</div>
+                <div class="rev-signals">
+                  <a href="/analyze?symbols={{ it.symbol }}" class="rev-signal-chip text-decoration-none">Analyze</a>
+                  <button class="rev-signal-chip btn btn-sm btn-link text-decoration-none mvr-alert" data-symbol="{{ it.symbol }}" data-price="{{ '%.2f'|format(it.price|default(0)|float) }}" data-dir="down" type="button">Set Alert</button>
+                </div>
+              </div>
+              <div class="rev-right">
+                <div class="rev-price-label">Price</div>
+                <div class="rev-price">₹{{ '%.2f'|format(it.price|float) }}</div>
+                <div class="rev-sparkline mt-1" data-series='{{ (it.chart.close if it.chart and it.chart.close else [])|tojson }}'></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-muted small">No losers detected.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

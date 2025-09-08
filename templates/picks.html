@@ -4,7 +4,23 @@
 <div id="picks" class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">Plutus Picks</h2>
-        <a href="/" class="text-decoration-none">Back to Dashboard</a>
+        <div class="d-flex align-items-center gap-2">
+            <form method="get" class="d-flex align-items-center gap-2" aria-label="Universe selector">
+                <label for="picksUniverse" class="text-muted small mb-0">Universe</label>
+                <select id="picksUniverse" name="u" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    <option value="n50" {% if universe=='n50' %}selected{% endif %}>NIFTY 50</option>
+                    <option value="n500" {% if universe=='n500' %}selected{% endif %}>NIFTY 500</option>
+                    <option value="watch" {% if universe=='watch' %}selected{% endif %}>Watchlist</option>
+                </select>
+                {% if llm_enabled %}
+                <input type="hidden" name="llm" value="1">
+                {% endif %}
+            </form>
+            {% if llm_enabled %}
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleRationales" aria-pressed="false" aria-label="Toggle rationale">Why</button>
+            {% endif %}
+            <a href="/" class="text-decoration-none">Back to Dashboard</a>
+        </div>
     </div>
 
     <!-- Sticky Filters Toolbar -->
@@ -71,6 +87,9 @@
                                 <div class="rev-signals">
                                     {% for chip in chips %}<span class="rev-signal-chip">{{ chip }}</span>{% endfor %}
                                 </div>
+                                {% if it.llm_reason %}
+                                <div class="pick-rationale mt-2">{{ it.llm_reason }}</div>
+                                {% endif %}
                             </div>
                             <div class="rev-right">
                                 <div class="rev-price-label">Price</div>
@@ -113,6 +132,9 @@
                                 <div class="rev-signals">
                                     {% for chip in chips %}<span class="rev-signal-chip">{{ chip }}</span>{% endfor %}
                                 </div>
+                                {% if it.llm_reason %}
+                                <div class="pick-rationale mt-2">{{ it.llm_reason }}</div>
+                                {% endif %}
                             </div>
                             <div class="rev-right">
                                 <div class="rev-price-label">Price</div>
