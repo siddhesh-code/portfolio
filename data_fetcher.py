@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import time
 import random
-from config import NIFTY50_SYMBOLS, NIFTY500_SYMBOLS
+from config import NIFTY50_SYMBOLS, NIFTY500_SYMBOLS, PORTFOLIO_WATCHLIST
 import sys
 from indicators import calculate_technical_indicators
 
@@ -154,7 +154,7 @@ def fetch_stock_data(symbol):
         return symbol, None
 
 
-def _fetch_many(symbols, max_workers=5, desc="Fetching stock data"):
+def _fetch_many(symbols, max_workers=30, desc="Fetching stock data"):
     """Shared concurrent fetcher with progress bar and robust result handling."""
     data = {}
     symbols = list(symbols or [])
@@ -198,7 +198,7 @@ def _fetch_many(symbols, max_workers=5, desc="Fetching stock data"):
     return data
 
 
-def get_nifty50_data(symbols=None, max_workers=5):
+def get_nifty50_data(symbols=None, max_workers=30):
     """Fetch data for all Nifty 50 stocks in parallel"""
     if symbols is None:
         symbols = NIFTY50_SYMBOLS
@@ -206,11 +206,16 @@ def get_nifty50_data(symbols=None, max_workers=5):
 
 
 
-def get_nifty500_data(symbols=None, max_workers=5):
+def get_nifty500_data(symbols=None, max_workers=30):
     """Fetch data for all Nifty 500 stocks in parallel"""
     if symbols is None:
         symbols = NIFTY500_SYMBOLS
-    # print stock whose data was not able to fetch
     return _fetch_many(symbols, max_workers=max_workers, desc="Fetching NIFTY500 data")
+
+def get_watchlist_data(symbols=None, max_workers=30):
+    """Fetch data for user portfolio/watchlist stocks in parallel"""
+    if symbols is None:
+        symbols = PORTFOLIO_WATCHLIST
+    return _fetch_many(symbols, max_workers=max_workers, desc="Fetching Watchlist data")
 
 

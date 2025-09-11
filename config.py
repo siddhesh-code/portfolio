@@ -1,6 +1,7 @@
 """
 Configuration and constants for the portfolio analysis
 """
+import os
 
 # List of Nifty 50 stock symbols (NSE format: SYMBOL.NS)
 NIFTY50_SYMBOLS = [
@@ -119,7 +120,36 @@ NIFTY500_SYMBOLS = [
     "ZEEL.NS", "ZENTEC.NS", "ZENSARTECH.NS", "ZYDUSLIFE.NS", "ECLERX.NS"
 ]
 
+# === Your portfolio (NSE symbols) ===
+POSITIONS = [
+    "AADHARHFC.NS",
+    "BANDHANBNK.NS",
+    "CAMS.NS",
+    "CDSL.NS",
+    "ELECTCAST.NS",
+    "FIEMIND.NS",
+    "HDFCBANK.NS",
+    "INFY.NS",
+    "JPPOWER.NS",
+    "MOTISONS.NS",
+    "OLAELEC.NS",
+    "ONGC.NS",
+    "POLYMED.NS",
+    "RAMCOCEM.NS",
+    "RELIANCE.NS",
+    "TATAMOTORS.NS",
+    "TCS.NS",
+    "THEMISMED.NS",
+    "UNIPARTS.NS",
+    "VPRPL.NS",
+    "YOGISUNG.BO",
+    "VPRpL.NS",
+    "WALCHANNAG.NS",
+    "OLAELEC.NS",
+    "LCID"
 
+]
+PORTFOLIO_WATCHLIST = POSITIONS
 # Technical Analysis Parameters
 RSI_PERIOD = 14
 MACD_FAST = 12
@@ -131,3 +161,50 @@ VOLUME_PERIOD = 20
 VOLATILITY_PERIOD = 20
 SMA_PERIODS = [20, 50]
 EMA_PERIOD = 20
+
+# -----------------------------
+# Email & Notification Settings
+# -----------------------------
+
+# Email sending is disabled by default; enable by setting MAIL_ENABLED=1
+MAIL_ENABLED = '1'
+MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+MAIL_PORT = int(os.getenv('MAIL_PORT', '587'))
+MAIL_USE_TLS = (os.getenv('MAIL_USE_TLS', '1') == '1')
+MAIL_USERNAME = os.getenv('MAIL_USERNAME', '')
+MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', '')
+MAIL_FROM = os.getenv('MAIL_FROM', MAIL_USERNAME or 'alerts@example.com')
+
+# Comma-separated list of recipients
+MAIL_TO = [e.strip() for e in os.getenv('MAIL_TO', '').split(',') if e.strip()] or []
+
+# Reversal email defaults (overridable via CLI flags/env)
+REVERSALS_EMAIL_UNIVERSE = os.getenv('REVERSALS_EMAIL_UNIVERSE', 'n500')  # n50|n500|watch
+# Typical reversal scores fall roughly within 0–30. Use a modest default.
+REVERSALS_EMAIL_MIN_SCORE = float(os.getenv('REVERSALS_EMAIL_MIN_SCORE', '10'))
+REVERSALS_EMAIL_TOP_N = int(os.getenv('REVERSALS_EMAIL_TOP_N', '10'))
+
+# Subject prefix for emails
+MAIL_SUBJECT_PREFIX = os.getenv('MAIL_SUBJECT_PREFIX', '[Plutus]')
+
+# -----------------------------
+# Email Command Trigger (IMAP Poller)
+# -----------------------------
+
+# Enable inbound email commands (polls IMAP for trigger messages)
+MAIL_COMMANDS_ENABLED = (os.getenv('MAIL_COMMANDS_ENABLED', '0') == '1')
+IMAP_SERVER = os.getenv('IMAP_SERVER', 'imap.gmail.com')
+IMAP_PORT = int(os.getenv('IMAP_PORT', '993'))
+IMAP_USE_SSL = (os.getenv('IMAP_USE_SSL', '1') == '1')
+
+# Only process messages whose Subject contains this keyword (case-insensitive)
+MAIL_COMMAND_TRIGGER_SUBJECT = os.getenv('MAIL_COMMAND_TRIGGER_SUBJECT', 'plutus')
+
+# Allowed sender emails (comma-separated). Empty = allow any sender.
+MAIL_COMMAND_ALLOWED_SENDERS = [e.strip().lower() for e in os.getenv('MAIL_COMMAND_ALLOWED_SENDERS', '').split(',') if e.strip()]
+
+# Reply behavior: when true, respond to the sender; otherwise use MAIL_TO list
+MAIL_COMMAND_REPLY_TO_SENDER = (os.getenv('MAIL_COMMAND_REPLY_TO_SENDER', '1') == '1')
+
+# Poll interval seconds
+MAIL_COMMAND_POLL_INTERVAL = int(os.getenv('MAIL_COMMAND_POLL_INTERVAL', '60'))

@@ -307,9 +307,10 @@ def _score_for_horizon(stock: Dict[str, Any], horizon: str) -> float:
     trend = str(stock.get('trend', 'Sideways'))
     strength = str(stock.get('trend_strength', 'Neutral')).lower()
     m = stock.get('metrics', {}) if isinstance(stock.get('metrics'), dict) else {}
-    ret_5 = float(m.get('ret_5d', 0) or 0) * 100
-    ret_21 = float(m.get('ret_21d', 0) or 0) * 100
-    ret_63 = float(m.get('ret_63d', 0) or 0) * 100
+    # Metrics already expressed in percent in stock_analyzer; do not rescale
+    ret_5 = float(m.get('ret_5d', 0) or 0)
+    ret_21 = float(m.get('ret_21d', 0) or 0)
+    ret_63 = float(m.get('ret_63d', 0) or 0)
     hist_slope = float(m.get('macd_hist_slope', 0) or 0)
     dist_r1 = float(m.get('dist_r1', 0) or 0)
     dist_s1 = float(m.get('dist_s1', 0) or 0)
@@ -391,11 +392,11 @@ def generate_picks(stocks: List[Dict[str, Any]], top_n: int = 5) -> Dict[str, An
         # Performance chips from metrics (1M/3M)
         m = stock.get('metrics', {}) if isinstance(stock.get('metrics'), dict) else {}
         try:
-            ret1m = float(m.get('ret_21d', 0) or 0) * 100.0
+            ret1m = float(m.get('ret_21d', 0) or 0)
         except Exception:
             ret1m = 0.0
         try:
-            ret3m = float(m.get('ret_63d', 0) or 0) * 100.0
+            ret3m = float(m.get('ret_63d', 0) or 0)
         except Exception:
             ret3m = 0.0
         return {

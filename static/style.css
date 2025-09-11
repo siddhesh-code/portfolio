@@ -820,11 +820,11 @@ body::before {
 .rev-list .list-group-item:hover { transform: translateY(-1px); box-shadow: var(--glow); border-color: rgba(96,239,255,0.25); }
 .rev-item { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
 .rev-left { flex: 1; min-width: 0; }
-.rev-right { width: 160px; text-align: right; }
+.rev-right { width: 190px; text-align: right; }
 .rev-title strong { color: #E2E8F0; text-transform: uppercase; letter-spacing: .3px; }
 .rev-subtext { color: #94A3B8; font-size: .85rem; margin-top: .15rem; }
 .rev-price-label { color: #94A3B8; font-size: .75rem; }
-.rev-price { font-weight: 700; }
+.rev-price { font-weight: 700; color: #cbd5e1; }
 .count-pill { border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); padding: .2rem .5rem; border-radius: 999px; font-weight: 700; }
 .rev-list.rev-bull .rev-sparkline path { stroke: var(--bull) !important; }
 .rev-list.rev-bear .rev-sparkline path { stroke: var(--bear) !important; }
@@ -868,6 +868,37 @@ body::before {
 }
 .rev-right .metric-chip span { color: inherit; }
 .rev-sparkline { position: relative; z-index: 0; }
+
+/* Picks: tidy 1M / 3M layout */
+.rev-right .perf-chip {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem;
+    align-items: center;
+}
+.rev-right .perf-chip .period {
+    display: flex;
+    align-items: baseline;
+    gap: .35rem;
+    justify-content: flex-end;
+}
+.rev-right .perf-chip .period .period-label {
+    color: #94A3B8;
+    font-size: .75rem;
+    min-width: 2ch;
+}
+.rev-right .perf-chip .return-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .875rem;
+    min-width: 76px; /* leave room for % */
+    text-align: right;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+}
+.rev-right .perf-chip .return-value .unit { color: inherit; flex: 0 0 auto; }
+.rev-right .perf-chip .return-value.positive { color: var(--bull); }
+.rev-right .perf-chip .return-value.negative { color: var(--bear); }
 
 .pick-rationale {
     display: none;

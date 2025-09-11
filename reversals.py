@@ -33,6 +33,18 @@ _MIN_BODY_FRAC = 0.1        # ignore candle patterns on ultra tiny bodies (of to
 _MIN_RANGE_FRAC = 0.002     # ignore patterns if total range < 0.2% of price (micro-bars)
 _NEAR_ZERO_SCORE = 0.5      # treat |score| < this as neutral for ranking
 
+# --- new additive (conservative) sophistication knobs ---
+_ATR_LEN = 14               # ATR window for volatility adjustment
+_ATR_HIGH_PCT = 0.05        # if ATR% > 5%, dampen scores a bit
+_ATR_DAMP = 0.85            # damping multiplier in very volatile regimes
+_REGIME_BONUS = 2           # minor tailwind with-trend
+_REGIME_PENALTY = 1         # minor headwind against-trend
+_DIVERGENCE_BONUS = 6       # RSI bullish/bearish divergence
+_MOM_AGREE_BONUS = 2        # 5d & 20d momentum agree
+_CONFLICT_DAMP = 0.9        # when strong bull & bear signals co-exist
+_ENSEMBLE_CONF_BONUS = 1    # extra nudge when multiple signals align
+_NEWS_BLEND_MAX = 3.0       # cap absolute score impact from news sentiment
+
 
 def _pct(a: float, b: float) -> float:
     try:
@@ -120,6 +132,76 @@ def _morning_evening_star(df) -> Tuple[bool, bool]:
         return False, False
 
 
+# --- new helpers: ATR, regime, divergence, momentum agreement ---
+def _atr_pct(df, n=_ATR_LEN) -> float:
+    """Average True Range as % of price."""
+    try:
+        high = df['High']
+        low = df['Low']
+        close = df['Close']
+        prev_close = close.shift(1)
+        tr = (high - low).abs()
+        tr = tr.combine((high - prev_close).abs(), max)
+        tr = tr.combine((low - prev_close).abs(), max)
+        atr = tr.rolling(n, min_periods=n).mean().iloc[-1]
+        c = float(close.iloc[-1])
+        if not _is_finite(atr) or not _is_finite(c) or c <= 0:
+            return 0.0
+        return float(atr) / c
+    except Exception:
+        return 0.0
+
+
+def _sma_slope(series, lookback=5) -> float:
+    try:
+        a = float(series.iloc[-1])
+        b = float(series.iloc[-(lookback+1)])
+        return a - b
+    except Exception:
+        return 0.0
+
+
+def _get_sma200(df) -> float:
+    try:
+        # prefer provided SMA_200 if present (fast), else compute
+        if 'SMA_200' in df.columns:
+            return float(df['SMA_200'].iloc[-1])
+        sma200 = df['Close'].rolling(200, min_periods=200).mean().iloc[-1]
+        return float(sma200) if _is_finite(sma200) else 0.0
+    except Exception:
+        return 0.0
+
+
+def _rsi_divergence(df, window=30, swing=5) -> Tuple[bool, bool]:
+    """
+    Look for simple 2-swing RSI divergence within 'window':
+      Bullish: price makes lower low, RSI makes higher low.
+      Bearish: price makes higher high, RSI makes lower high.
+    """
+    try:
+        sub = df.tail(window)
+        px = sub['Close']
+        rsi = sub['RSI']
+        # recent swing points
+        # lows
+        low1_idx = px.tail(swing).idxmin()
+        low2_idx = px.iloc[:-swing].tail(swing).idxmin()
+        p_low1, p_low2 = float(px.loc[low1_idx]), float(px.loc[low2_idx])
+        r_low1, r_low2 = float(rsi.loc[low1_idx]), float(rsi.loc[low2_idx])
+        bull_div = (p_low1 < p_low2) and (r_low1 > r_low2)
+
+        # highs
+        high1_idx = px.tail(swing).idxmax()
+        high2_idx = px.iloc[:-swing].tail(swing).idxmax()
+        p_high1, p_high2 = float(px.loc[high1_idx]), float(px.loc[high2_idx])
+        r_high1, r_high2 = float(rsi.loc[high1_idx]), float(rsi.loc[high2_idx])
+        bear_div = (p_high1 > p_high2) and (r_high1 < r_high2)
+
+        return bool(bull_div), bool(bear_div)
+    except Exception:
+        return False, False
+
+
 def score_reversal(df) -> Tuple[float, List[str], Dict[str, Any]]:
     """Return (score, reasons, features). Positive => bullish, negative => bearish."""
     rsi = _last(df, 'RSI')
@@ -197,8 +279,9 @@ def score_reversal(df) -> Tuple[float, List[str], Dict[str, Any]]:
         score -= 6; reasons.append('Evening star')
 
     # 5) Volume spike (ratio-based, avoid truthiness bug)
+    vol_spike = False
     if _is_finite(vol_sma) and vol_sma > 0 and _is_finite(vol) and (vol / vol_sma) > _VOL_SPIKE_RATIO:
-        score += 4; reasons.append('Volume spike')
+        score += 4; reasons.append('Volume spike'); vol_spike = True
 
     # 6) Proximity to S/R (within SR_PROX_PCT)
     if _is_finite(s1) and s1 > 0 and _is_finite(close) and 0 < (close - s1) / max(close, _EPS) < _SR_PROX_PCT:
@@ -215,11 +298,10 @@ def score_reversal(df) -> Tuple[float, List[str], Dict[str, Any]]:
         if m5 < 0 and m5_prev > 0: 
             score -= 4; reasons.append('Momentum flip down (5d)')
     except Exception:
-        pass
+        m5 = 0.0
 
     # 8) SMA bounce/cross risk with neutral band
     if _is_finite(close) and _is_finite(sma20) and _is_finite(sma50):
-        # neutral: if sma20 and sma50 are almost equal relative to price
         if abs(sma20 - sma50) / max(abs(close), 1.0) > _SMA_NEUTRAL_BAND:
             if close > sma20 > sma50: 
                 score += 3
@@ -245,6 +327,58 @@ def score_reversal(df) -> Tuple[float, List[str], Dict[str, Any]]:
     except Exception:
         pass
 
+    # --- new: regime filter (with SMA200 & SMA50 slope) ---
+    sma200 = _get_sma200(df)
+    sma50_slope = _sma_slope(df['SMA_50']) if 'SMA_50' in df.columns else 0.0
+    regime_bull = _is_finite(close) and _is_finite(sma200) and (close > sma200) and (sma50_slope > 0)
+    regime_bear = _is_finite(close) and _is_finite(sma200) and (close < sma200) and (sma50_slope < 0)
+    if regime_bull:
+        if score > 0: score += _REGIME_BONUS
+        elif score < 0: score -= _REGIME_PENALTY
+    elif regime_bear:
+        if score < 0: score -= _REGIME_BONUS
+        elif score > 0: score += _REGIME_PENALTY
+
+    # --- new: RSI divergence (price vs RSI) ---
+    bull_div, bear_div = _rsi_divergence(df)
+    if bull_div: 
+        score += _DIVERGENCE_BONUS; reasons.append('RSI bullish divergence')
+    if bear_div: 
+        score -= _DIVERGENCE_BONUS; reasons.append('RSI bearish divergence')
+
+    # --- new: multi-timeframe agreement (5d vs 20d momentum) ---
+    try:
+        m20 = _pct(df['Close'].iloc[-1], df['Close'].iloc[-21])
+    except Exception:
+        m20 = 0.0
+    if m20 > 0 and m5 > 0 and score > 0:
+        score += _MOM_AGREE_BONUS
+    if m20 < 0 and m5 < 0 and score < 0:
+        score -= _MOM_AGREE_BONUS
+
+    # --- new: volatility-aware dampening (ATR%) ---
+    atrp = _atr_pct(df)
+    if atrp > _ATR_HIGH_PCT:
+        score *= _ATR_DAMP  # tame noisy high-vol names
+
+    # --- new: ensemble confirmation & conflict control (uses reasons we already appended) ---
+    bull_signals = sum(s in reasons for s in [
+        'RSI oversold','MACD bull cross','Re-entered above lower band',
+        'Hammer-like','Bullish engulfing','Morning star','Volume spike',
+        'Near S1','Momentum flip up (5d)','RSI bullish divergence'
+    ])
+    bear_signals = sum(s in reasons for s in [
+        'RSI overbought','MACD bear cross','Re-entered below upper band',
+        'Shooting star-like','Bearish engulfing','Evening star','Near R1',
+        'Momentum flip down (5d)','RSI bearish divergence'
+    ])
+    if bull_signals >= 3 and bear_signals == 0 and score > 0:
+        score += _ENSEMBLE_CONF_BONUS
+    if bear_signals >= 3 and bull_signals == 0 and score < 0:
+        score -= _ENSEMBLE_CONF_BONUS
+    if bull_signals > 0 and bear_signals > 0:
+        score *= _CONFLICT_DAMP  # reduce whipsaw risk when signals disagree
+
     features = {
         'rsi': rsi,
         'macd': macd,
@@ -252,11 +386,21 @@ def score_reversal(df) -> Tuple[float, List[str], Dict[str, Any]]:
         'hist_slope': hist_slope,
         'bb_lower': bb_l,
         'bb_upper': bb_u,
-        'volume_spike': (_is_finite(vol_sma) and vol_sma > 0 and _is_finite(vol) and (vol / vol_sma) > _VOL_SPIKE_RATIO),
+        'volume_spike': vol_spike,
         'hammer': _hammer_like(o, h, l, c),
         'shooting_star': _shooting_star(o, h, l, c),
         'bull_engulfing': bull_eng,
         'bear_engulfing': bear_eng,
+        # --- added diagnostics (non-breaking additions) ---
+        'atr_pct': atrp,
+        'sma50_slope': sma50_slope,
+        'sma200': sma200,
+        'regime_bull': regime_bull,
+        'regime_bear': regime_bear,
+        'rsi_bull_div': bull_div,
+        'rsi_bear_div': bear_div,
+        'm5_pct': m5 if 'm5' in locals() else 0.0,
+        'm20_pct': m20 if 'm20' in locals() else 0.0,
     }
 
     return score, reasons, features
@@ -271,6 +415,33 @@ def rank_reversals(results: Dict[str, Dict[str, Any]], formatted: List[Dict[str,
         if df is None or len(df) < 30:
             continue
         score, reasons, feats = score_reversal(df)
+
+        # --- optional news/sentiment blend (non-breaking): looks for common keys ---
+        try:
+            ns = None
+            # Accept a variety of shapes:
+            # - results[sym]['news_sentiment'] -> float[-1..1]
+            # - results[sym]['sentiment'] -> float[-1..1]
+            # - results[sym]['news'] -> {'sentiment': float}
+            # - results[sym]['news_items'] -> list[{'sentiment': float}]
+            if 'news_sentiment' in data and _is_finite(data['news_sentiment']):
+                ns = float(data['news_sentiment'])
+            elif 'sentiment' in data and _is_finite(data['sentiment']):
+                ns = float(data['sentiment'])
+            elif isinstance(data.get('news'), dict) and _is_finite(data['news'].get('sentiment', None)):
+                ns = float(data['news']['sentiment'])
+            elif isinstance(data.get('news_items'), list):
+                vals = [float(x.get('sentiment', 0.0)) for x in data['news_items'] if _is_finite(x.get('sentiment', None))]
+                if vals:
+                    ns = sum(vals) / max(len(vals), 1)
+            if ns is not None:
+                ns = max(min(ns, 1.0), -1.0)
+                score += ns * _NEWS_BLEND_MAX
+                if ns > 0: reasons.append('News sentiment tailwind')
+                elif ns < 0: reasons.append('News sentiment headwind')
+        except Exception:
+            pass
+
         base = form_map.get(sym, {})
         # Build sparkline (close-only, last 30)
         try:
@@ -303,3 +474,147 @@ def rank_reversals(results: Dict[str, Dict[str, Any]], formatted: List[Dict[str,
     out_bull.sort(key=lambda x: x['score'], reverse=True)
     out_bear.sort(key=lambda x: x['score'], reverse=True)
     return { 'bullish': out_bull[:top_n], 'bearish': out_bear[:top_n] }
+
+
+def rank_reversals_by_horizon(
+    results: Dict[str, Dict[str, Any]],
+    formatted: List[Dict[str, Any]],
+    top_n: int = 12
+) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
+    """Bucket reversal candidates into short/medium/long horizons.
+
+    Uses ai_analysis.horizon_recommendation on the formatted stock context to decide
+    which horizon a reversal is most actionable for. Items are included in a horizon
+    bucket when direction matches the horizon action (Buy->bullish, Sell->bearish).
+    Returns:
+      {
+        'short':  {'bullish': [...], 'bearish': [...]},
+        'medium': {'bullish': [...], 'bearish': [...]},
+        'long':   {'bullish': [...], 'bearish': [...]},
+      }
+    """
+    try:
+        from ai_analysis import horizon_recommendation
+    except Exception:
+        # Fallback: return empty buckets if AI module unavailable
+        return {
+            'short': {'bullish': [], 'bearish': []},
+            'medium': {'bullish': [], 'bearish': []},
+            'long': {'bullish': [], 'bearish': []},
+        }
+
+    form_map = {s['symbol']: s for s in formatted}
+    buckets = {
+        'short': {'bullish': [], 'bearish': []},
+        'medium': {'bullish': [], 'bearish': []},
+        'long': {'bullish': [], 'bearish': []},
+    }
+
+    for sym, data in results.items():
+        df = data.get('technical')
+        if df is None or len(df) < 30:
+            continue
+        score, reasons, feats = score_reversal(df)
+
+        # blend news here as well to align with rank_reversals()
+        try:
+            ns = None
+            if 'news_sentiment' in data and _is_finite(data['news_sentiment']):
+                ns = float(data['news_sentiment'])
+            elif 'sentiment' in data and _is_finite(data['sentiment']):
+                ns = float(data['sentiment'])
+            elif isinstance(data.get('news'), dict) and _is_finite(data['news'].get('sentiment', None)):
+                ns = float(data['news']['sentiment'])
+            elif isinstance(data.get('news_items'), list):
+                vals = [float(x.get('sentiment', 0.0)) for x in data['news_items'] if _is_finite(x.get('sentiment', None))]
+                if vals:
+                    ns = sum(vals) / max(len(vals), 1)
+            if ns is not None:
+                ns = max(min(ns, 1.0), -1.0)
+                score += ns * _NEWS_BLEND_MAX
+                if ns > 0: reasons.append('News sentiment tailwind')
+                elif ns < 0: reasons.append('News sentiment headwind')
+        except Exception:
+            pass
+
+        base = form_map.get(sym, {})
+
+        # Build common item (reuse structure of rank_reversals output)
+        try:
+            closes = [float(x) if math.isfinite(float(x)) else None for x in df['Close'].tail(30).tolist()]
+            closes = [x for x in closes if x is not None]
+        except Exception:
+            closes = []
+        abs_score = abs(score) if abs(score) >= _NEAR_ZERO_SCORE else 0.0
+        direction = 'Bullish' if score > 0 and abs_score > 0 else 'Bearish' if score < 0 and abs_score > 0 else 'Neutral'
+        if direction == 'Neutral':
+            continue
+        item = {
+            'symbol': sym,
+            'name': base.get('name') or sym.split('.')[0],
+            'price': base.get('price') or float(df['Close'].iloc[-1]),
+            'score': round(abs_score, 2),
+            'direction': direction,
+            'reasons': reasons,
+            'indicators': base.get('indicators', {}),
+            'link': f"/analyze?symbols={sym}",
+            'spark': closes,
+        }
+
+        # Decide horizon actions using AI heuristic
+        try:
+            advice = horizon_recommendation(base if base else {})
+        except Exception:
+            advice = None
+
+        if not isinstance(advice, dict):
+            continue
+
+        mapping = {
+            'short': advice.get('short_term', {}),
+            'medium': advice.get('medium_term', {}),
+            'long': advice.get('long_term', {}),
+        }
+        # Prepare enriched base for optional horizon scoring
+        enriched_base = dict(base) if isinstance(base, dict) else {}
+        enriched_base['advice'] = advice
+
+        # Try to use ai_analysis._score_for_horizon to produce a horizon-aware score;
+        # fallback to a simple blend: rev_score + 0.1 * confidence
+        try:
+            from ai_analysis import _score_for_horizon as _hz_score
+        except Exception:
+            _hz_score = None
+
+        for hz, rec in mapping.items():
+            act = str(rec.get('action', 'Hold'))
+            conf = 0.0
+            try:
+                conf = float(rec.get('confidence', 0) or 0)
+            except Exception:
+                conf = 0.0
+
+            # Compute horizon score
+            try:
+                hz_key = f"{hz}_term"
+                if _hz_score is not None:
+                    hz_score = float(_hz_score(enriched_base, hz_key))
+                else:
+                    hz_score = float(abs_score + 0.1 * conf)
+            except Exception:
+                hz_score = float(abs_score + 0.1 * conf)
+
+            enriched_item = dict(item, horizon=hz, hz_score=round(hz_score, 2), confidence=conf, action=act)
+            if item['direction'] == 'Bullish' and act == 'Buy':
+                buckets[hz]['bullish'].append(enriched_item)
+            elif item['direction'] == 'Bearish' and act == 'Sell':
+                buckets[hz]['bearish'].append(enriched_item)
+
+    # Sort and cap per bucket
+    for hz in ('short', 'medium', 'long'):
+        buckets[hz]['bullish'].sort(key=lambda x: (x.get('hz_score', x.get('score', 0)), x.get('confidence', 0.0), x.get('score', 0.0)), reverse=True)
+        buckets[hz]['bearish'].sort(key=lambda x: (x.get('hz_score', x.get('score', 0)), x.get('confidence', 0.0), x.get('score', 0.0)), reverse=True)
+        buckets[hz]['bullish'] = buckets[hz]['bullish'][:top_n]
+        buckets[hz]['bearish'] = buckets[hz]['bearish'][:top_n]
+
+    return buckets

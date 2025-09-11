@@ -51,6 +51,87 @@
   </div>
 
   <div class="row g-3">
+    <!-- Horizon buckets: Short / Medium / Long -->
+    {% if rev_hz is defined %}
+    {% for hz in ['short','medium','long'] %}
+    {% set hz_label = {'short':'Short Term','medium':'Medium Term','long':'Long Term'}[hz] %}
+    <div class="col-12">
+      <div class="card glass-card h-100 mb-2">
+        <div class="card-header glass-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">{{ hz_label }} Reversals</h5>
+          <span class="text-muted small">Action-aligned with horizon advice</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-lg-6">
+              <h6 class="text-success">Bullish</h6>
+              {% if rev_hz[hz].bullish %}
+              <div class="list-group rev-list rev-bull">
+                {% for it in rev_hz[hz].bullish %}
+                {% set reasons_text = it.reasons|join(' ; ') %}
+                <a href="{{ it.link }}" class="list-group-item list-group-item-action rev-item" data-hz="{{ hz }}" data-dir="bull" data-score="{{ '%.0f'|format(it.score) }}" data-reasons="{{ reasons_text }}">
+                  <div class="rev-left">
+                    <div class="rev-title">
+                      <strong>{{ it.name }}</strong>
+                      <span class="rev-score">{{ '%.0f'|format(it.score) }}</span>
+                      <span class="badge bg-success">Bullish</span>
+                    </div>
+                    {% set ind = it.indicators if it.indicators is defined and it.indicators else {} %}
+                    {% set rsi_obj = ind.get('RSI', {}) %}
+                    {% set macd_obj = ind.get('MACD', {}) %}
+                    <div class="rev-subtext">RSI {{ '%.0f'|format((rsi_obj.get('value', 50))|float) }} ({{ rsi_obj.get('signal','Neutral') }}) · MACD {{ macd_obj.get('Trend','Neutral') }}</div>
+                  </div>
+                  <div class="rev-right">
+                    <div class="rev-price-label">Price</div>
+                    <div class="rev-price">₹{{ '%.2f'|format(it.price|float) }}</div>
+                    <div class="rev-sparkline mt-1" data-series='{{ it.spark|tojson }}'></div>
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="text-muted small">No bullish candidates.</div>
+              {% endif %}
+            </div>
+            <div class="col-12 col-lg-6">
+              <h6 class="text-danger">Bearish</h6>
+              {% if rev_hz[hz].bearish %}
+              <div class="list-group rev-list rev-bear">
+                {% for it in rev_hz[hz].bearish %}
+                {% set reasons_text = it.reasons|join(' ; ') %}
+                <a href="{{ it.link }}" class="list-group-item list-group-item-action rev-item" data-hz="{{ hz }}" data-dir="bear" data-score="{{ '%.0f'|format(it.score) }}" data-reasons="{{ reasons_text }}">
+                  <div class="rev-left">
+                    <div class="rev-title">
+                      <strong>{{ it.name }}</strong>
+                      <span class="rev-score danger">{{ '%.0f'|format(it.score) }}</span>
+                      <span class="badge bg-danger">Bearish</span>
+                    </div>
+                    {% set ind = it.indicators if it.indicators is defined and it.indicators else {} %}
+                    {% set rsi_obj = ind.get('RSI', {}) %}
+                    {% set macd_obj = ind.get('MACD', {}) %}
+                    <div class="rev-subtext">RSI {{ '%.0f'|format((rsi_obj.get('value', 50))|float) }} ({{ rsi_obj.get('signal','Neutral') }}) · MACD {{ macd_obj.get('Trend','Neutral') }}</div>
+                  </div>
+                  <div class="rev-right">
+                    <div class="rev-price-label">Price</div>
+                    <div class="rev-price">₹{{ '%.2f'|format(it.price|float) }}</div>
+                    <div class="rev-sparkline mt-1" data-series='{{ it.spark|tojson }}'></div>
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="text-muted small">No bearish candidates.</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if not rev_hz %}
+    <!-- Legacy aggregate lists -->
     <div class="col-12 col-lg-6">
       <div class="card glass-card h-100">
         <div class="card-header glass-header d-flex justify-content-between align-items-center">
@@ -141,6 +222,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
