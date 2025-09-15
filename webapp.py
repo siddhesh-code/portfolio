@@ -30,13 +30,23 @@ def get_market_insights():
     # Get data for key market indicators
     market_data = get_nifty50_data(NIFTY50_SYMBOLS[:5])  # Using top 5 stocks as sample
     analysis = format_stock_analysis(market_data)
-    
+
+    if not analysis:
+        return {
+            'sentiment': 'Unknown',
+            'top_movers': 0,
+            'buy_signals': 0,
+            'sell_signals': 0,
+        }
+
+    avg_health = sum(stock.get('health_score', 0) for stock in analysis) / len(analysis)
+
     # Calculate market insights
     insights = {
-        'sentiment': 'Positive' if sum(stock['health_score'] for stock in analysis) / len(analysis) > 50 else 'Negative',
+        'sentiment': 'Positive' if avg_health > 50 else 'Negative',
         'top_movers': len([stock for stock in analysis if abs(stock.get('day_change', 0)) > 2]),  # Stocks moving >2%
-        'buy_signals': len([stock for stock in analysis if stock['action'] == 'Buy']),
-        'sell_signals': len([stock for stock in analysis if stock['action'] == 'Sell'])
+        'buy_signals': len([stock for stock in analysis if stock.get('action') == 'Buy']),
+        'sell_signals': len([stock for stock in analysis if stock.get('action') == 'Sell'])
     }
     return insights
 
