@@ -2,6 +2,31 @@
 Stock analysis and output formatting module
 """
 
+import math
+
+
+def _safe_float(value, default=0.0):
+    """Convert *value* to ``float`` while guarding against NaNs and ``None``."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+
+    if math.isnan(result) or math.isinf(result):
+        return default
+    return result
+
+
+def _safe_int(value, default=0):
+    """Convert *value* to ``int`` with graceful fallback for bad inputs."""
+    try:
+        result = int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+    return result
+
+
 def analyze_rsi(rsi):
     """Analyze RSI value and return signal"""
     if rsi < 30:
@@ -35,42 +60,66 @@ def format_stock_analysis(results):
     formatted_results = []
     
     for symbol, data in results.items():
-        if data is None or data['technical'] is None:
+        if not data or data.get('technical') is None:
             continue
-            
-        tech = data['technical'].iloc[-1]  # Get latest values
-        
+
+        technical = data['technical']
+        if technical is None or technical.empty:
+            continue
+
+        tech = technical.iloc[-1]  # Get latest values
+
         try:
             # Calculate base values
-            close_price = float(tech.get('Close', 0))
-            open_price = float(tech.get('Open', close_price))
-            
+            close_price = _safe_float(tech.get('Close'), 0.0)
+            open_price = _safe_float(tech.get('Open'), close_price)
+
+            if close_price <= 0:
+                continue
+
             # Calculate price changes
             price_change = close_price - open_price
-            day_change = (price_change / open_price * 100) if open_price != 0 else 0
-            
+            day_change = (price_change / open_price * 100) if open_price else 0.0
+
             # Set price targets
-            price_target = float(tech.get('Price_Target', close_price * 1.05))
-            stop_loss = float(tech.get('Stop_Loss', close_price * 0.95))
-            
+            default_target = close_price * 1.05
+            default_stop = close_price * 0.95
+            price_target = _safe_float(tech.get('Price_Target'), default_target)
+            stop_loss = _safe_float(tech.get('Stop_Loss'), default_stop)
+
             # Calculate risk/reward ratio
-            price_diff = price_target - close_price
-            stop_diff = close_price - stop_loss
-            risk_reward = min(abs(price_diff / stop_diff), 3.0) if stop_diff != 0 else 1.0
-            
+            risk = max(close_price - stop_loss, 0.0)
+            reward = max(price_target - close_price, 0.0)
+            risk_reward = 0.0
+            if risk > 0 and reward > 0:
+                risk_reward = min(reward / risk, 3.0)
+
             # Technical analysis
-            rsi = float(tech.get('RSI', 50))
-            macd = float(tech.get('MACD', 0))
-            macd_signal = float(tech.get('MACD_signal', 0))
-            volume = int(tech.get('Volume', 0))
-            volume_sma = float(tech.get('Volume_SMA', volume))
-            
+            rsi = _safe_float(tech.get('RSI'), 50.0)
+            macd = _safe_float(tech.get('MACD'), 0.0)
+            macd_signal = _safe_float(tech.get('MACD_signal'), 0.0)
+            volume = _safe_int(tech.get('Volume'), 0)
+            volume_sma = _safe_float(tech.get('Volume_SMA'), float(volume))
+
+            support_1 = _safe_float(tech.get('Support_1'), close_price * 0.98)
+            support_2 = _safe_float(tech.get('Support_2'), close_price * 0.95)
+            resistance_1 = _safe_float(tech.get('Resistance_1'), close_price * 1.02)
+            resistance_2 = _safe_float(tech.get('Resistance_2'), close_price * 1.05)
+
+            bb_upper = _safe_float(tech.get('BB_upper'), close_price * 1.02)
+            bb_lower = _safe_float(tech.get('BB_lower'), close_price * 0.98)
+            bb_middle = _safe_float(tech.get('BB_middle'), close_price)
+            bb_position = analyze_bollinger_bands(close_price, bb_lower, bb_upper)
+
+            sma_20 = _safe_float(tech.get('SMA_20'), close_price)
+            sma_50 = _safe_float(tech.get('SMA_50'), close_price)
+
             # Format stock data
             stock_data = {
                 'symbol': symbol,
                 'price': close_price,
                 'volume': volume,
-                'health_score': int(tech.get('Health_Score', 50)),
+                'health_score': _safe_int(tech.get('Health_Score'), 50),
                 'trend': str(tech.get('Trend', 'Sideways')),
                 'trend_strength': str(tech.get('Trend_Strength', 'Neutral')),
                 'action': str(tech.get('Action', 'Watch')),
@@ -92,27 +141,23 @@ def format_stock_analysis(results):
                         'Trend': analyze_macd(macd, macd_signal)
                     },
                     'Support_Resistance': {
-                        'Resistance_1': close_price * 1.02,  # 2% above current price
-                        'Resistance_2': close_price * 1.05,  # 5% above current price
-                        'Support_1': close_price * 0.98,    # 2% below current price
-                        'Support_2': close_price * 0.95     # 5% below current price
+                        'Resistance_1': resistance_1,
+                        'Resistance_2': resistance_2,
+                        'Support_1': support_1,
+                        'Support_2': support_2
                     },
                     'BB': {
-                        'Upper': float(tech.get('BB_upper', close_price * 1.02)),
-                        'Lower': float(tech.get('BB_lower', close_price * 0.98)),
-                        'Middle': float(tech.get('BB_middle', close_price)),
-                        'Position': analyze_bollinger_bands(
-                            close_price,
-                            float(tech.get('BB_lower', close_price * 0.98)),
-                            float(tech.get('BB_upper', close_price * 1.02))
-                        )
+                        'Upper': bb_upper,
+                        'Lower': bb_lower,
+                        'Middle': bb_middle,
+                        'Position': bb_position
                     },
                     'SMA': {
-                        'SMA_20': float(tech.get('SMA_20', close_price)),
-                        'SMA_50': float(tech.get('SMA_50', close_price)),
+                        'SMA_20': sma_20,
+                        'SMA_50': sma_50,
                         'Trend': analyze_moving_averages(
-                            float(tech.get('SMA_20', close_price)),
-                            float(tech.get('SMA_50', close_price))
+                            sma_20,
+                            sma_50
                         )
                     },
                     'Volume': {
@@ -120,21 +165,21 @@ def format_stock_analysis(results):
                         'SMA_20': volume_sma,
                         'Trend': analyze_volume(volume, volume_sma)
                     },
-                    'Volatility': float(tech.get('Volatility', 0)) * 100  # Convert to percentage
+                    'Volatility': _safe_float(tech.get('Volatility'), 0.0) * 100  # Convert to percentage
                 }
             }
-            
+
             # Add backtest performance if available
             if any(col.startswith('Backtest_') for col in tech.index):
                 stock_data['backtest'] = {
-                    'total_return': float(tech.get('Backtest_total_return', 0)),
-                    'annual_return': float(tech.get('Backtest_annual_return', 0)),
-                    'sharpe_ratio': float(tech.get('Backtest_sharpe_ratio', 0)),
-                    'max_drawdown': float(tech.get('Backtest_max_drawdown', 0))
+                    'total_return': _safe_float(tech.get('Backtest_total_return'), 0.0),
+                    'annual_return': _safe_float(tech.get('Backtest_annual_return'), 0.0),
+                    'sharpe_ratio': _safe_float(tech.get('Backtest_sharpe_ratio'), 0.0),
+                    'max_drawdown': _safe_float(tech.get('Backtest_max_drawdown'), 0.0)
                 }
-            
+
             formatted_results.append(stock_data)
-            
+
         except (TypeError, ValueError, ZeroDivisionError) as e:
             print(f"Error processing {symbol}: {str(e)}")
             continue

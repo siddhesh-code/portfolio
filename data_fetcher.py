@@ -3,7 +3,7 @@ Data fetching module for stock data
 """
 
 import yfinance as yf
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import time
 from config import NIFTY50_SYMBOLS
@@ -39,21 +39,28 @@ def get_nifty50_data(symbols=None, max_workers=5):
     
     start_time = time.time()
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Create a list of futures
-        futures = [
-            executor.submit(fetch_stock_data, symbol)
+        futures = {
+            executor.submit(fetch_stock_data, symbol): symbol
             for symbol in symbols
-        ]
-        
-        # Process the results as they complete with a progress bar
-        for future in tqdm(
-            futures,
+        }
+
+        with tqdm(
             total=len(futures),
             desc="Fetching stock data"
-        ):
-            symbol, result = future.result()
-            if result is not None:
-                data[symbol] = result
+        ) as progress:
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    symbol, result = future.result()
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    print(f"Error fetching data for {symbol}: {exc}")
+                    progress.update(1)
+                    continue
+
+                if result is not None:
+                    data[symbol] = result
+
+                progress.update(1)
     
     end_time = time.time()
     print(f"\nFetched data for {len(data)} stocks in {end_time - start_time:.2f} seconds")
