@@ -146,9 +146,17 @@ POSITIONS = [
     "VPRpL.NS",
     "WALCHANNAG.NS",
     "OLAELEC.NS",
-    "LCID"
-
+    "LCID",
+    "WABAG.NS",
+    "KPIGREEN.NS",
+    "SBCL.NS",
+    "DCXINDIA.NS",
+    "AVALON.NS",
+    "CYIENTDLM.NS",
+    "IDEAFORGE.NS",
+    "FUSION.NS",
 ]
+
 PORTFOLIO_WATCHLIST = POSITIONS
 # Technical Analysis Parameters
 RSI_PERIOD = 14

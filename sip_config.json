@@ -1,0 +1,47 @@
+{
+  "budget": {
+    "monthly_budget": 80000,
+    "core_pct": 0.60,
+    "dip_pct": 0.25,
+    "buffer_pct": 0.15
+  },
+  "holdings": {
+    "DCXINDIA.NS": {"qty": 30, "avg_price": 280.0},
+    "MTARTECH.NS": {"qty": 5, "avg_price": 1777.88},
+    "SBCL.NS": {"qty": 13, "avg_price": 552.45},
+    "TDPOWERSYS.NS": {"qty": 15, "avg_price": 538.25},
+    "WABAG.NS": {"qty": 6, "avg_price": 1549.80}
+  },
+  "triggers": {
+    "price_drop_primary": 0.12,
+    "price_drop_strong": 0.15,
+    "nifty_buffer_partial": -0.05,
+    "nifty_buffer_full": -0.10
+  },
+  "data": {
+    "cache_path": "portfolio/.cache/sip_prices.json",
+    "history_days": 365,
+    "retry_attempts": 3,
+    "retry_backoff": 1.5
+  },
+  "reporting": {
+    "output_dir": "portfolio/reports",
+    "history_file": "portfolio/reports/sip_history.json",
+    "save_markdown": true,
+    "save_csv": true
+  },
+  "notifications": {
+    "email": {
+      "enabled": true
+    },
+    "slack": {
+      "enabled": false,
+      "webhook_url": ""
+    },
+    "telegram": {
+      "enabled": false,
+      "bot_token": "",
+      "chat_id": ""
+    }
+  }
+}

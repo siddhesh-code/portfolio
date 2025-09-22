@@ -1,0 +1,63 @@
+{
+  "generated_at": "2025-09-21T18:39:59.101494",
+  "plans": [
+    {
+      "ticker": "DCXINDIA.NS",
+      "market_value": 8378.999633789062,
+      "pnl": -21.0003662109375,
+      "avg_price": 280.0,
+      "quantity": 30.0,
+      "latest_price": 279.29998779296875
+    },
+    {
+      "ticker": "MTARTECH.NS",
+      "market_value": 8991.500244140625,
+      "pnl": 102.10024414062354,
+      "avg_price": 1777.88,
+      "quantity": 5.0,
+      "latest_price": 1798.300048828125
+    },
+    {
+      "ticker": "SBCL.NS",
+      "market_value": 7124.0,
+      "pnl": -57.850000000000364,
+      "avg_price": 552.45,
+      "quantity": 13.0,
+      "latest_price": 548.0
+    },
+    {
+      "ticker": "TDPOWERSYS.NS",
+      "market_value": 8301.750183105469,
+      "pnl": 228.00018310546875,
+      "avg_price": 538.25,
+      "quantity": 15.0,
+      "latest_price": 553.4500122070312
+    },
+    {
+      "ticker": "WABAG.NS",
+      "market_value": 9402.0,
+      "pnl": 103.20000000000073,
+      "avg_price": 1549.8,
+      "quantity": 6.0,
+      "latest_price": 1567.0
+    }
+  ],
+  "totals": {
+    "core_budget": 48000,
+    "dip_budget": 20000,
+    "buffer_budget": 12000,
+    "monthly_budget": 80000,
+    "deploy_now": 0,
+    "carry_forward": 20000,
+    "market_value": 42198.250061035156,
+    "cost_basis": 41843.8,
+    "unrealized_pnl": 354.45006103515516,
+    "overall_return_pct": 0.008470790440523013
+  },
+  "buffer": {
+    "buffer_budget": 12000,
+    "buffer_action": "HOLD",
+    "buffer_to_deploy": 0,
+    "nifty_mtd": 0.030409412022721183
+  }
+}
